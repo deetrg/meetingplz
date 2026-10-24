@@ -1,7 +1,7 @@
 import {gh} from './gh.mjs';
 import fs from 'node:fs';
 const runs=await (await gh('/actions/workflows/ios.yml/runs?per_page=3')).json();
-const run=runs.workflow_runs.find(r=>r.conclusion==='success');
+const run=runs.workflow_runs.find(r=>r.id===40118934231);
 const arts=await (await gh(`/actions/runs/${run.id}/artifacts`)).json();
 const r=await gh(`/actions/artifacts/${arts.artifacts[0].id}/zip`,{raw:true});
 const z=await (await fetch(r.headers.get('location'))).arrayBuffer();
