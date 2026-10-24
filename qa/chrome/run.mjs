@@ -150,6 +150,32 @@ await step('wikipedia Test it: flyby plane + card, Join opens tab', async () => 
   return `join tab: ${nt.url().slice(0, 60)}`;
 });
 
+await step('wikipedia flyby style: plane, page behind stays clickable', async () => {
+  const orig = await sw.evaluate(() => chrome.storage.local.get('me').then((s) => (s.me && s.me.settings && s.me.settings.style) || 'flyby'));
+  try {
+    const r = await popup.evaluate(() => new Promise((res) => chrome.runtime.sendMessage({ type: 'saveSettings', patch: { style: 'flyby' } }, res)));
+    assert(r && r.settings && r.settings.style === 'flyby', 'saveSettings flyby failed: ' + JSON.stringify(r).slice(0, 120));
+    const w2 = await browser.newPage();
+    await w2.setViewport({ width: 1280, height: 800 });
+    await w2.goto('https://en.wikipedia.org/wiki/Meeting', { waitUntil: 'domcontentloaded' });
+    await popup.bringToFront();
+    await popup.evaluate(() => { chrome.runtime.sendMessage({ type: 'test', delayMs: 2000 }, () => {}); });
+    await w2.bringToFront();
+    const t0 = await waitHost(w2, 12000);
+    assert(t0, 'flyby reminder never appeared');
+    await sleep(1500 - (Date.now() - t0));
+    await shot(w2, 'wiki-flyby-plane');
+    await sleep(5000 - (Date.now() - t0));
+    await shot(w2, 'wiki-flyby-card');
+    const behind = await w2.evaluate(() => { const e = document.elementFromPoint(60, 500); return e ? e.tagName : ''; });
+    assert(behind && behind !== 'MEETINGPLZ-REMINDER', 'page behind is blocked in flyby: ' + behind);
+    await w2.close();
+    return 'element behind: ' + behind;
+  } finally {
+    await popup.evaluate((o) => new Promise((res) => chrome.runtime.sendMessage({ type: 'saveSettings', patch: { style: o } }, res)), orig).catch(() => {});
+  }
+});
+
 await step('chrome://extensions page', async () => {
   const p = await browser.newPage();
   await p.setViewport({ width: 1280, height: 800 });
