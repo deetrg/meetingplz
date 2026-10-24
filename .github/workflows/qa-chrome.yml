@@ -1,0 +1,49 @@
+name: qa-chrome
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'extension/**'
+      - 'shared/**'
+      - 'server/public/**'
+      - 'qa/**'
+      - '.github/workflows/qa-chrome.yml'
+
+jobs:
+  chrome:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build extension
+        working-directory: extension
+        run: npm run build
+      - name: Install Chrome for Testing
+        id: chrome
+        run: |
+          npx --yes @puppeteer/browsers install chrome@stable --path "$RUNNER_TEMP/chrome" | tee "$RUNNER_TEMP/chrome.txt"
+          CHROME_PATH=$(tail -n1 "$RUNNER_TEMP/chrome.txt" | sed 's/^[^ ]* //')
+          echo "path=$CHROME_PATH" >> "$GITHUB_OUTPUT"
+          "$CHROME_PATH" --version
+      - name: Install QA deps and xvfb
+        run: |
+          sudo apt-get update -y >/dev/null
+          sudo apt-get install -y xvfb openbox >/dev/null
+          cd qa/chrome && npm install --no-audit --no-fund
+      - name: Run Chrome QA (headful, xvfb)
+        env:
+          MP_QA_TOKEN: ${{ secrets.MP_QA_TOKEN }}
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+          QA_OUT: ${{ github.workspace }}/qa/out
+        run: |
+          xvfb-run -a -s "-screen 0 1400x1000x24" bash -c 'openbox >/dev/null 2>&1 & sleep 1; node qa/chrome/run.mjs'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-qa
+          path: qa/out/
+          if-no-files-found: warn
