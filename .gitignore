@@ -1,0 +1,11 @@
+node_modules
+.DS_Store
+*.p8
+*.p12
+.dev.vars
+dist
+target
+.wrangler
+build
+DerivedData
+*.xcarchive
