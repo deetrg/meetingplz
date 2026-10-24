@@ -121,7 +121,7 @@ jobs:
           mkdir -p smoke
           # 1) demo overlay: burst of screenshots to catch the plane mid-flight
           rm -f "$LOG"
-          MEETINGPLZ_DEMO=1 "$BIN" > smoke/app-demo.log 2>&1 &
+          MEETINGPLZ_DEMO=1 MEETINGPLZ_FORCE_MOTION=1 "$BIN" > smoke/app-demo.log 2>&1 &
           for i in $(seq 1 400); do grep -q "overlay shown" smoke/app-demo.log && break; sleep 0.05; done
           for i in $(seq 1 10); do screencapture -x -C "smoke/mac-flyby-$(printf %02d $i).png"; done
           sleep 3; screencapture -x smoke/mac-overlay.png
@@ -131,7 +131,7 @@ jobs:
           sleep 2
           # 1b) demo overlay frozen at 1.2 s (plane mid-flight, deterministic)
           rm -f "$LOG"
-          MEETINGPLZ_DEMO=1 MEETINGPLZ_FREEZE_MS=1200 "$BIN" > smoke/app-freeze.log 2>&1 &
+          MEETINGPLZ_DEMO=1 MEETINGPLZ_FORCE_MOTION=1 MEETINGPLZ_FREEZE_MS=1200 "$BIN" > smoke/app-freeze.log 2>&1 &
           for i in $(seq 1 400); do grep -q "overlay shown" smoke/app-freeze.log && break; sleep 0.05; done
           sleep 2; screencapture -x smoke/mac-flyby-mid.png
           cp "$LOG" smoke/debug-freeze.log 2>/dev/null || true

@@ -49,6 +49,14 @@
     link = ev.link || '';
     flyby = payload.mode !== 'takeover';
     var c = await MP.cfg();
+    if (c.forceMotion) { // QA only: CI machines report prefers-reduced-motion
+      var realMM = window.matchMedia.bind(window);
+      window.matchMedia = function (q) {
+        var r = realMM(q);
+        if (/prefers-reduced-motion/.test(q)) return { matches: false, media: q, addEventListener: function () {}, removeEventListener: function () {}, addListener: function () {}, removeListener: function () {} };
+        return r;
+      };
+    }
     var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     MP.invoke('log_line', { line: 'prefers-reduced-motion: ' + reduced });
     var showOpts = {

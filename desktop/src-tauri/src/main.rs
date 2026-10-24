@@ -39,6 +39,7 @@ fn get_config() -> Value {
         "api": api_base(),
         "demo": demo_mode(),
         "platform": std::env::consts::OS,
+        "forceMotion": std::env::var("MEETINGPLZ_FORCE_MOTION").map(|v| v == "1").unwrap_or(false),
         "freezeMs": std::env::var("MEETINGPLZ_FREEZE_MS").ok().and_then(|v| v.parse::<f64>().ok()),
     })
 }
