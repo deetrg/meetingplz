@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MeetingPlz reminder demo</title>
+<style>
+  body{margin:0;font-family:Georgia,serif;background:#fdf6e3;color:#333}
+  header{background:#2b5797;color:#fff;padding:14px 24px;display:flex;gap:18px;align-items:center;font-family:Arial,sans-serif}
+  header b{font-size:20px}
+  nav a{color:#cde;margin-right:14px;font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:20px}
+  .box{background:#fff;border:1px solid #c33;border-radius:6px;padding:14px;box-shadow:0 2px 10px rgba(200,0,0,.2)}
+  .box h3{margin:0 0 6px;color:#c33;font-family:Arial,sans-serif}
+  .box:nth-child(3n){background:#e8f5e9;border-color:#2e7d32}
+  .box:nth-child(3n) h3{color:#2e7d32}
+  .box:nth-child(3n+1){background:#fff3e0;border-color:#ef6c00}
+  table{border-collapse:collapse;width:calc(100% - 40px);margin:0 20px 20px;font-family:Arial,sans-serif;font-size:13px}
+  td,th{border:1px solid #999;padding:6px;background:#fff}
+  #panel{position:fixed;left:10px;bottom:10px;z-index:5;background:#111;color:#fff;border-radius:12px;padding:10px;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100vw - 20px);font:13px Arial,sans-serif}
+  #panel button{font:inherit;padding:6px 10px;border-radius:999px;border:1px solid #fff;background:#222;color:#fff;cursor:pointer}
+  #panel label{display:flex;align-items:center;gap:4px}
+  body.pageh1 h1{font-size:60px;color:#c0c;text-transform:uppercase;letter-spacing:8px;margin:20px}
+</style>
+</head>
+<body class="pageh1">
+<header><b>Busy Page Daily</b><nav><a href="#">News</a><a href="#">Sports</a><a href="#">Weather</a><a href="#">Mail</a></nav></header>
+<h1>Breaking: everything is on fire</h1>
+<div class="grid" id="grid"></div>
+<table id="tbl"></table>
+<div id="panel">
+  <button data-a="flyby">Flyby</button>
+  <button data-a="flyby-late">Flyby late</button>
+  <button data-a="takeover">Takeover</button>
+  <button data-a="takeover-late">Takeover late</button>
+  <button data-a="nolink">No link</button>
+  <button data-a="close">Close</button>
+  <label><input type="checkbox" id="dark"> dark</label>
+  <label>alarm <select id="alarm"><option>off</option><option selected>jingle</option><option>buzz</option><option>bell</option><option>beep</option></select></label>
+  <span id="log"></span>
+</div>
+<script src="core.js"></script>
+<script type="module">
+  import * as R from './reminder/reminder.js';
+  const grid = document.getElementById('grid');
+  for (let i = 0; i < 18; i++) grid.insertAdjacentHTML('beforeend', `<div class="box"><h3>Headline number ${i + 1}</h3><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p><a href="#">Read more</a></div>`);
+  const tbl = document.getElementById('tbl');
+  for (let r = 0; r < 8; r++) tbl.insertAdjacentHTML('beforeend', '<tr>' + Array.from({ length: 6 }, (_, c) => `<td>${r * c + 7}</td>`).join('') + '</tr>');
+
+  const log = (m) => { document.getElementById('log').textContent = m; };
+  let cur = null;
+  const base = {
+    key: 'demo1', title: 'Quick sync', calendar: 'dai@example.com', attendees: 'with Miles and 3 others',
+    link: 'https://meet.google.com/abc-defg-hij'
+  };
+  function go(kind, extra) {
+    extra = extra || {};
+    if (cur) cur.close();
+    const late = kind.endsWith('late');
+    const mode = kind.startsWith('takeover') ? 'takeover' : 'flyby';
+    const t0 = new Date(); t0.setSeconds(0, 0);
+    const fixedNow = t0.getTime() - 118000 + (late ? 118000 + 42000 : 0);
+    const frozen = typeof extra.freezeAt === 'number';
+    const now = frozen ? () => fixedNow : undefined;
+    const start = frozen ? fixedNow + (late ? -42000 : 118000) : Date.now() + (late ? -42000 : 118000);
+    // fixedNow is "now"; start is relative to it
+    const evt = Object.assign({}, base, { start, end: start + 30 * 60000 });
+    if (kind === 'nolink') { evt.link = ''; evt.title = 'Standup'; }
+    cur = R.show({
+      event: evt, mode, now,
+      settings: { alarm: extra.alarm || document.getElementById('alarm').value, snoozeSeconds: 60, style: mode },
+      theme: extra.theme || (document.getElementById('dark').checked ? 'dark' : undefined),
+      freezeAt: extra.freezeAt, isPrimary: !frozen,
+      onJoin: () => log('onJoin'), onSnooze: (e, s) => log('onSnooze ' + s), onDismiss: (e, why) => log('onDismiss ' + why),
+      onPointerInCard: (inside) => log('pointer in card: ' + inside)
+    });
+    window.__cur = cur;
+  }
+  document.getElementById('panel').addEventListener('click', (e) => {
+    const a = e.target.dataset && e.target.dataset.a; if (!a) return;
+    if (a === 'close') { if (cur) cur.close(); return; }
+    go(a);
+  });
+  window.go = go;
+  // QA: demo.html#kind=flyby&freeze=1500&theme=dark
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.get('kind')) go(q.get('kind'), { freezeAt: q.get('freeze') != null ? +q.get('freeze') : undefined, theme: q.get('theme') || undefined, alarm: 'off' });
+</script>
+</body>
+</html>

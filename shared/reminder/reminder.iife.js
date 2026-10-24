@@ -153,7 +153,7 @@ var CSS = [
   '.plane{position:relative;flex:none;display:block;width:var(--pw);height:auto;overflow:visible;stroke:var(--ink);fill:none}',
   '.plane [fill="#fff"]{fill:var(--paper)}',
   '.wrap{position:absolute;inset:0;display:grid;place-items:center;padding:16px;pointer-events:none}',
-  '.card{pointer-events:auto;position:relative;width:min(440px,100%);max-height:100%;overflow:auto;background:var(--paper);border:2px solid var(--ink);border-radius:20px;',
+  '.card{pointer-events:auto;position:relative;width:min(440px,100%);max-height:100%;background:var(--paper);border:2px solid var(--ink);border-radius:20px;',
   'padding:26px 24px 16px;opacity:0;scrollbar-width:none}',
   '.card::-webkit-scrollbar{display:none}',
   '.stage.flyby .card{box-shadow:0 18px 60px rgba(0,0,0,.28)}',
@@ -186,7 +186,7 @@ var CSS = [
   '.hold span{position:relative}',
   '.stage.late .count .clock{font-size:44px}',
   '@media (max-width:480px){.card{padding:22px 18px 14px}.clock{font-size:38px}.meta{padding:12px 14px}.stage.late .count .clock{font-size:38px}}',
-  '@media (max-height:620px){.card{padding-top:18px}.meta{margin:12px 0}.hl{font-size:30px}}',
+  '@media (max-height:620px){.card{overflow:auto;padding-top:18px}.meta{margin:12px 0}.hl{font-size:30px}}',
   '@media (prefers-reduced-motion:reduce){.bob,.tile{animation:none!important}.join,.imin{transition:none}}',
   '.stage.rm .bob,.stage.rm .tile{animation:none!important}'
 ].join('');
@@ -447,7 +447,6 @@ function show(opts) {
       var cx = r.left + r.width / 2;
       // time when plane centre passes this letter: from + pcx0 + (to-from)*t/T = cx
       var tHit = (cx - p.from - pcx0) / (p.to - p.from) * CROSS_MS;
-      if (mode === 'takeover') tHit = 260 + i * 38;
       tHit = Math.max(120, tHit);
       firstDrop = Math.min(firstDrop, tHit);
       var dy = skyY - (r.top + r.height / 2);

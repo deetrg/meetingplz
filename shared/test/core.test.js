@@ -117,3 +117,21 @@ test('settings', () => {
   assert.deepEqual(C.validateSettings(null), {});
   assert.deepEqual(C.normalizeSettings({ style: 'takeover' }), { leadSeconds: 120, style: 'takeover', alarm: 'jingle', meetingsOnly: true, snoozeSeconds: 60 });
 });
+
+test('reminder helpers match core', async () => {
+  const R = await import('../reminder/reminder.js');
+  for (const ms of [600000, 125000, 120000, 61000, 60000, 45000, 1000, 0, -5000]) {
+    assert.equal(R.inText(ms), C.inText(ms));
+    assert.equal(R.fmtClock(ms), C.fmtClock(ms));
+    for (const t of ['Quick sync', 'Quarterly planning with everyone', '']) assert.equal(R.bannerText(t, ms), C.bannerText(t, ms));
+  }
+  for (const l of ['', null, 'https://meet.google.com/a', 'https://x.zoom.us/j/1', 'https://teams.microsoft.com/l/x', 'https://a.webex.com/m', 'https://whereby.com/r']) assert.equal(R.providerLabel(l), C.providerLabel(l));
+});
+
+test('iife is in sync with reminder.js', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '../reminder/reminder.js'), 'utf8');
+  const iife = fs.readFileSync(path.join(__dirname, '../reminder/reminder.iife.js'), 'utf8');
+  const strip = (s) => s.replace(/export default [^;]*;/, '').replace(/^export /gm, '').replace(/\s+/g, '');
+  assert.ok(strip(iife).includes(strip(src)), 'run: node shared/build.js');
+});
