@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MeetingPlz",
+  "version": "1.0.0",
+  "identifier": "com.dai.meetingplz.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "beforeBuildCommand": "node scripts/build.mjs",
+    "beforeDevCommand": "node scripts/build.mjs"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "MeetingPlz",
+        "url": "index.html",
+        "visible": false,
+        "width": 320,
+        "height": 240,
+        "focus": false,
+        "skipTaskbar": true
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis"],
+    "category": "Productivity",
+    "shortDescription": "A meeting reminder you can't miss.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": true
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}
