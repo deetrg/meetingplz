@@ -1,5 +1,5 @@
 #root{padding-top:max(0px,env(safe-area-inset-top));padding-bottom:calc(40px + env(safe-area-inset-bottom));min-height:100vh}
-.splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:20px;padding:24px 0}
+.splash{min-height:calc(100vh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:20px;padding:24px 0}
 .splash img{width:min(300px,72vw);height:auto}
 .splash h1{font-size:clamp(40px,10vw,64px)}
 .splash .btn{min-width:260px}
@@ -30,3 +30,7 @@ dialog h2{margin-bottom:8px}
 dialog .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
 .danger{margin-top:36px;text-align:center}
 .spin{text-align:center;padding:80px 0;color:var(--muted)}
+
+.bar .btn.text,.who .btn{white-space:nowrap}
+.row{flex-wrap:wrap}
+@media (max-width:480px){.who span{display:none}.bar{padding-top:max(18px,env(safe-area-inset-top))}}

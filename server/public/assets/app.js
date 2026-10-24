@@ -183,6 +183,7 @@
       '<h1>MeetingPlz.</h1>' +
       (error ? '<div class="err" role="alert">' + esc(ERRORS[error] || 'Something went wrong. Please try again.') + '</div>' : '') +
       GOOGLE_BTN +
+      '<p class="small muted" style="max-width:300px">On Google\'s screen, tick the calendar box so MeetingPlz can see your meetings.</p>' +
       '<div class="small muted"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>' +
       '</div>';
   }

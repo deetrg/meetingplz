@@ -2,6 +2,16 @@
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
+// Local-only receipt log (Cache Storage, last 20) so a push can be verified from the page: caches.open('mp-push-log').
+async function logPush(entry) {
+  try {
+    const c = await caches.open('mp-push-log');
+    await c.put('/__push/' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), new Response(JSON.stringify(entry)));
+    const keys = await c.keys();
+    for (const k of keys.slice(0, Math.max(0, keys.length - 20))) await c.delete(k);
+  } catch { /* ignore */ }
+}
+
 self.addEventListener('push', (event) => {
   let d = {};
   try { d = event.data ? event.data.json() : {}; } catch { d = { title: 'Join the meeting.', body: event.data ? event.data.text() : '' }; }
@@ -12,6 +22,7 @@ self.addEventListener('push', (event) => {
     // The open app tab shows the in-page reminder itself; don't double up (never on iOS, which needs a notification per push).
     if (!ios && !isTest && wins.some((w) => w.visibilityState === 'visible')) {
       wins.forEach((w) => w.postMessage({ type: 'push', data: d.data }));
+      await logPush({ at: Date.now(), title: d.title, body: d.body, shown: false, via: 'in-page' });
       return;
     }
     await self.registration.showNotification(d.title || 'Join the meeting.', {
@@ -23,6 +34,7 @@ self.addEventListener('push', (event) => {
       icon: '/shared/art/icon-192.png',
       badge: '/shared/art/icon-32.png',
     });
+    await logPush({ at: Date.now(), title: d.title, body: d.body, tag: d.tag, actions: (d.actions || []).map((a) => a.title), shown: true });
   })());
 });
 
