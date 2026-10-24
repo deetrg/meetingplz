@@ -133,7 +133,7 @@
   function showTest(extra) {
     var ev = fakeEvent(118000, extra);
     shown = { key: ev.key, event: ev, test: Date.now() + 10 * 60000 };
-    return MP.invoke('show_overlay', { event: ev, settings: settings, mode: settings.style });
+    return MP.invoke('show_overlay', { event: ev, settings: settings, mode: settings.style }).then(function () { MP.invoke('log_line', { line: 'overlay shown' }); });
   }
 
   async function init() {
