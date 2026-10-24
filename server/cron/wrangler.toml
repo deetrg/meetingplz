@@ -1,0 +1,12 @@
+name = "meetingplz-cron"
+main = "index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "meetingplz-db"
+database_id = "2498a3cd-e45e-4a7d-8e10-c73bba762a23"

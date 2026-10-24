@@ -1,0 +1,11 @@
+{
+  "name": "meetingplz-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "build": "node scripts/build.mjs",
+    "deploy:pages": "node scripts/build.mjs && wrangler pages deploy dist --project-name meetingplz --branch main",
+    "deploy:cron": "wrangler deploy -c cron/wrangler.toml"
+  }
+}

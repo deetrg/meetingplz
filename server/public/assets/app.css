@@ -1,0 +1,32 @@
+#root{padding-top:max(0px,env(safe-area-inset-top));padding-bottom:calc(40px + env(safe-area-inset-bottom));min-height:100vh}
+.splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:20px;padding:24px 0}
+.splash img{width:min(300px,72vw);height:auto}
+.splash h1{font-size:clamp(40px,10vw,64px)}
+.splash .btn{min-width:260px}
+.err{border:2px solid var(--line);border-radius:14px;padding:10px 14px;font-weight:600;font-size:14px}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:18px 0 8px}
+.who{display:flex;align-items:center;gap:10px;min-width:0}
+.avatar{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);object-fit:cover;background:var(--soft);flex:none;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.who span{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+section{margin-top:28px}
+section>h2{margin-bottom:12px}
+.list{display:grid;gap:10px}
+.mtg{border:2px solid var(--line);border-radius:20px;padding:14px 16px;display:flex;align-items:center;gap:14px}
+.mtg .t{flex:none;min-width:64px;font-weight:800;letter-spacing:-.02em;font-size:15px;line-height:1.2}
+.mtg .t small{display:block;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:0}
+.mtg .b{flex:1;min-width:0}
+.mtg .b b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mtg .b span{font-size:13px;color:var(--muted)}
+.empty{text-align:center;padding:24px 10px}
+.empty img{width:180px;height:auto;margin-bottom:8px}
+.stack{display:grid;gap:16px}
+.field label{display:block;font-weight:700;font-size:14px;margin-bottom:8px}
+.note{font-size:14px;color:var(--muted);margin-top:8px}
+.dl{margin-top:4px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:999px;font-weight:600;font-size:14px;z-index:50;max-width:90vw}
+dialog{border:2px solid var(--line);border-radius:20px;background:var(--paper);color:var(--ink);padding:24px;max-width:380px;width:calc(100% - 40px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{margin-bottom:8px}
+dialog .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.danger{margin-top:36px;text-align:center}
+.spin{text-align:center;padding:80px 0;color:var(--muted)}
