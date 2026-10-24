@@ -70,7 +70,8 @@ pub async fn close_overlays(app: AppHandle) {
 pub async fn show_overlay(app: AppHandle, event: Value, settings: Value, mode: String) -> Result<(), String> {
     let key = event.get("key").cloned().unwrap_or(Value::Null);
     {
-        let cur = app.state::<AppState>().overlay.lock().unwrap();
+        let st = app.state::<AppState>();
+        let cur = st.overlay.lock().unwrap();
         if let Some(c) = cur.as_ref() {
             if c.get("key") == Some(&key) && !key.is_null() {
                 return Ok(()); // already showing this one
