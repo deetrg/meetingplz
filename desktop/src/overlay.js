@@ -48,7 +48,10 @@
     var ev = payload.event;
     link = ev.link || '';
     flyby = payload.mode !== 'takeover';
-    inst = window.MeetingPlzReminder.show({
+    var c = await MP.cfg();
+    var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    MP.invoke('log_line', { line: 'prefers-reduced-motion: ' + reduced });
+    var showOpts = {
       event: ev,
       settings: payload.settings,
       mode: payload.mode,
@@ -57,7 +60,9 @@
       onSnooze: function () { act('snooze'); },
       onDismiss: function () { act('dismiss'); },
       onPointerInCard: function (inCard) { if (flyby) setIgnore(!inCard); }
-    });
+    };
+    if (typeof c.freezeMs === 'number') showOpts.freezeAt = c.freezeMs; // QA only
+    inst = window.MeetingPlzReminder.show(showOpts);
     if (flyby) startCursorWatch();
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
