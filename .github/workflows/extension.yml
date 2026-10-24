@@ -1,0 +1,59 @@
+name: extension
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extension/**'
+      - 'shared/**'
+      - '.github/workflows/extension.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test
+        working-directory: extension
+        run: npm test
+      - name: Build
+        working-directory: extension
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meetingplz-extension
+          path: extension/dist/meetingplz-extension.zip
+      - name: Attach to draft release v1.0.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          find_release() {
+            api "https://api.github.com/repos/$REPO/releases?per_page=100" \
+              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).find(x=>x.tag_name==="v1.0.0");console.log(r?r.id:"")})'
+          }
+          RID=$(find_release)
+          if [ -z "$RID" ]; then
+            api -X POST "https://api.github.com/repos/$REPO/releases" \
+              -d '{"tag_name":"v1.0.0","target_commitish":"main","name":"MeetingPlz v1.0.0","draft":true,"body":"MeetingPlz v1.0.0"}' >/dev/null || true
+            sleep 2
+            RID=$(find_release)
+          fi
+          [ -n "$RID" ] || { echo "could not find or create release v1.0.0"; exit 1; }
+          # replace an existing asset with the same name
+          OLD=$(api "https://api.github.com/repos/$REPO/releases/$RID/assets?per_page=100" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s).find(x=>x.name==="meetingplz-extension.zip");console.log(a?a.id:"")})')
+          if [ -n "$OLD" ]; then api -X DELETE "https://api.github.com/repos/$REPO/releases/assets/$OLD" >/dev/null; fi
+          api -X POST -H "Content-Type: application/zip" \
+            --data-binary @extension/dist/meetingplz-extension.zip \
+            "https://uploads.github.com/repos/$REPO/releases/$RID/assets?name=meetingplz-extension.zip" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.id){console.error(s);process.exit(1)}console.log("uploaded",j.name,j.size)})'

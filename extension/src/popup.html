@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MeetingPlz</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<main id="out" hidden>
+  <img class="plane" src="art/plane.svg" alt="">
+  <h1>MeetingPlz.</h1>
+  <p class="sub">Two minutes before a meeting, one big Join button.</p>
+  <button id="signin" class="btn primary">Continue with Google</button>
+  <p id="err" class="err" hidden></p>
+</main>
+<main id="in" hidden>
+  <header>
+    <h1 class="sm">MeetingPlz.</h1>
+    <span id="who" class="muted"></span>
+  </header>
+  <section class="next" id="next"></section>
+  <button id="test" class="btn primary">Test it</button>
+  <section class="settings">
+    <div class="row"><span>Style</span>
+      <div class="seg" id="style"><button data-v="flyby">Flyby</button><button data-v="takeover">Takeover</button></div></div>
+    <div class="row"><span>Remind me</span>
+      <select id="lead">
+        <option value="30">30 seconds before</option><option value="60">1 minute before</option><option value="120">2 minutes before</option>
+        <option value="180">3 minutes before</option><option value="300">5 minutes before</option><option value="600">10 minutes before</option>
+      </select></div>
+    <div class="row"><span>Alarm</span>
+      <select id="alarm"><option value="jingle">Jingle</option><option value="buzz">Buzz</option><option value="bell">Bell</option><option value="beep">Beep</option><option value="off">Off</option></select></div>
+  </section>
+  <footer>
+    <a id="webapp" href="https://meetingplz.pages.dev/app" target="_blank" rel="noopener">Open web app</a>
+    <button id="signout" class="link">Sign out</button>
+  </footer>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>
