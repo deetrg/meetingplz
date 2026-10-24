@@ -7,7 +7,8 @@ const { isMeeting, extractMeetingLink, providerOf } = core;
 function firstName(a) {
   const n = (a.displayName || '').trim();
   if (n) return n.split(/\s+/)[0];
-  return (a.email || '').split('@')[0];
+  const local = (a.email || '').split('@')[0].split(/[._-]+/)[0] || '';
+  return local ? local.charAt(0).toUpperCase() + local.slice(1) : '';
 }
 
 export function attendeeText(attendees) {

@@ -17,8 +17,8 @@ async function signIn(env, { client = 'ext', ret = 'https://abc.chromiumapp.org/
   assert.equal(loc.searchParams.get('prompt'), 'consent');
   assert.ok(loc.searchParams.get('scope').includes('calendar.readonly'));
   assert.equal(loc.searchParams.get('redirect_uri'), `${ORIGIN}/api/auth/google/callback`);
-  const nonce = start.headers.get('set-cookie').match(/mp_oauth=([^;]+)/)[1];
-  const cb = await handleApi(req(`/api/auth/google/callback?code=abc&state=${encodeURIComponent(loc.searchParams.get('state'))}`, { headers: { cookie: `mp_oauth=${nonce}` } }), env);
+  const nonce = start.headers.get('set-cookie').match(/(mp_oauth_[^=]+)=([^;]+)/); const nonceName = nonce[1]; const nonceVal = nonce[2];
+  const cb = await handleApi(req(`/api/auth/google/callback?code=abc&state=${encodeURIComponent(loc.searchParams.get('state'))}`, { headers: { cookie: `${nonceName}=${nonceVal}` } }), env);
   return cb;
 }
 
@@ -110,8 +110,8 @@ test('callback rejects bad state, missing nonce cookie, and missing calendar sco
     assert.equal((await handleApi(req(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`), env)).status, 400);
     g.restore();
     const g2 = googleMock({ scope: 'openid email profile' });
-    const nonce = start.headers.get('set-cookie').match(/mp_oauth=([^;]+)/)[1];
-    const r = await handleApi(req(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`, { headers: { cookie: `mp_oauth=${nonce}` } }), env);
+    const nonce = start.headers.get('set-cookie').match(/(mp_oauth_[^=]+)=([^;]+)/); const nonceName = nonce[1]; const nonceVal = nonce[2];
+    const r = await handleApi(req(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`, { headers: { cookie: `${nonceName}=${nonceVal}` } }), env);
     assert.equal(r.headers.get('location'), '/app?error=calendar_access_needed');
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM users').get().n, 0);
     g2.restore();
@@ -156,7 +156,7 @@ test('mapEvents: shape, attendee text, filtering flags, dedupe', () => {
   assert.equal(list.find((e) => e.id === 'e5').allDay, true);
   assert.equal(list.find((e) => e.id === 'e5').isMeeting, false);
   assert.ok(!list.find((e) => e.id === 'e4'));
-  assert.equal(attendeeText([{ self: true }, { email: 'zed@x.com' }]), 'with zed');
+  assert.equal(attendeeText([{ self: true }, { email: 'zed@x.com' }]), 'with Zed');
   assert.equal(attendeeText([{ self: true }]), '');
 });
 

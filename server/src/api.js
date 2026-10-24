@@ -99,11 +99,11 @@ async function authStart(request, env, url) {
   const payload = b64uEncode(utf8(JSON.stringify({ c: client, r: client === 'web' ? '' : ret, n: nonce, e: Date.now() + 10 * 60000 })));
   const state = `${payload}.${await hmacSign(env.SESSION_PEPPER, payload)}`;
   const redirectUri = `${publicOrigin(env, url)}/api/auth/google/callback`;
-  return redirect(authUrl(env, { redirectUri, state }), [cookie('mp_oauth', nonce, { maxAge: 600, path: '/api/auth' })]);
+  return redirect(authUrl(env, { redirectUri, state }), [cookie(`mp_oauth_${nonce.slice(0, 10)}`, nonce, { maxAge: 600, path: '/api/auth' })]);
 }
 
 function failRedirect(client, ret, code) {
-  const clear = cookie('mp_oauth', '', { maxAge: 0, path: '/api/auth' });
+  const clear = cookie(`mp_oauth_${String((typeof st !== 'undefined' && st && st.n) || '').slice(0, 10)}`, '', { maxAge: 0, path: '/api/auth' });
   if (client === 'web' || !ret) return redirect(`/app?error=${encodeURIComponent(code)}`, [clear]);
   return redirect(`${ret}#error=${encodeURIComponent(code)}`, [clear]);
 }
@@ -115,7 +115,7 @@ async function authCallback(request, env, url) {
   let st;
   try { st = JSON.parse(fromUtf8(b64uDecode(payload))); } catch { return json({ error: 'bad_state' }, 400); }
   if (!st || st.e < Date.now()) return json({ error: 'state_expired' }, 400);
-  const nonce = parseCookies(request.headers.get('cookie')).mp_oauth;
+  const nonce = st.n ? parseCookies(request.headers.get('cookie'))[`mp_oauth_${String(st.n).slice(0, 10)}`] : '';
   if (!nonce || nonce !== st.n) return json({ error: 'bad_state' }, 400);
   if (url.searchParams.get('error')) return failRedirect(st.c, st.r, url.searchParams.get('error'));
   const code = url.searchParams.get('code');
@@ -149,7 +149,7 @@ async function authCallback(request, env, url) {
   await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, client, created_at, last_seen) VALUES (?, ?, ?, ?, ?)')
     .bind(await sha256Hex(env.SESSION_PEPPER + token), userId, st.c, now, now).run();
 
-  const clear = cookie('mp_oauth', '', { maxAge: 0, path: '/api/auth' });
+  const clear = cookie(`mp_oauth_${String((typeof st !== 'undefined' && st && st.n) || '').slice(0, 10)}`, '', { maxAge: 0, path: '/api/auth' });
   if (st.c === 'web') return redirect('/app', [clear, cookie('mp_session', token, { maxAge: SESSION_DAYS * 86400 })]);
   return redirect(`${st.r}#token=${token}`, [clear]);
 }
