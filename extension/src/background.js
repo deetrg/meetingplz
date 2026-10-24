@@ -241,6 +241,8 @@
       await clearNotification(ev);
       await closePopupWindow();
       await chrome.alarms.create(SNOOZE + core.eventKey(ev), { delayInMinutes: Math.max(0.5, secs / 60) });
+      // best effort: lets the server hold back its push for this event
+      try { if (!ev.test) await api('/api/snooze', { method: 'POST', body: { key: core.eventKey(ev), seconds: secs } }); } catch (e) {}
     }
 
     async function onDismiss(ev) {

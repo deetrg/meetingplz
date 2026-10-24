@@ -31,7 +31,7 @@ if (fs.existsSync(sharedArt)) {
   });
 }
 // popup uses art/plane.svg: if shared names it differently, keep the stub as fallback (copied above)
-require('./make-icons')(path.join(out, 'icons'));
+// icons: src/icons (resized from shared/art/icon-1024.png with sips)
 
 const manifest = JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8'));
 const zip = path.join(dist, 'meetingplz-extension.zip');
