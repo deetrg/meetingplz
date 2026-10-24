@@ -1,0 +1,127 @@
+name: ios
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Show toolchain
+        run: xcodebuild -version && xcrun --sdk iphoneos --show-sdk-version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate --spec project.yml
+      - name: Write App Store Connect API key
+        env:
+          P8: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "$P8" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
+          chmod 600 "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project MeetingPlz.xcodeproj -scheme MeetingPlz -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/MeetingPlz.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.APPLE_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APPLE_API_ISSUER }}" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION=1.0 \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}"
+      - name: Export and upload to TestFlight
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/MeetingPlz.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.APPLE_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APPLE_API_ISSUER }}"
+      - name: Remove key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
+
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate --spec project.yml
+      - name: Build for simulator
+        run: |
+          xcodebuild build \
+            -project MeetingPlz.xcodeproj -scheme MeetingPlz -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']]
+          c=c or [x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          print(c[-1]['udid'])")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl ui "$UDID" appearance light
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 || true
+          xcrun simctl install "$UDID" "$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/MeetingPlz.app"
+      - name: Capture screens
+        run: |
+          mkdir -p shots
+          shot() { # name wait args...
+            name=$1; wait=$2; shift 2
+            xcrun simctl terminate "$UDID" com.dai.meetingplz 2>/dev/null || true
+            xcrun simctl launch "$UDID" com.dai.meetingplz "$@"
+            sleep "$wait"
+            xcrun simctl io "$UDID" screenshot "shots/ios-$name.png"
+          }
+          shot signin 3 -mpDemo -mpSignedOut
+          shot home 3 -mpDemo
+          shot settings 4 -mpDemo -mpSettings
+          shot reminder-flyby-early 2.2 -mpDemo -mpReminder
+          shot reminder-flyby 5.5 -mpDemo -mpReminder
+          shot reminder-takeover 4 -mpDemo -mpReminder -mpTakeover
+          xcrun simctl ui "$UDID" appearance dark
+          shot home-dark 3 -mpDemo
+          shot reminder-dark 5.5 -mpDemo -mpReminder
+          ls -la shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: ios/shots/*.png
