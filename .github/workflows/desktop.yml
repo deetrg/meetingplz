@@ -110,15 +110,35 @@ jobs:
           spctl -a -vv -t open --context context:primary-signature MeetingPlz-mac.dmg || true
           spctl -a -vv -t exec "$APP"
           ls -la MeetingPlz-mac.dmg "$BIN"
-      - name: Smoke (demo overlay, best effort)
+      - name: Smoke (demo overlay + signed-in settings, best effort)
         continue-on-error: true
+        env:
+          QA_TOKEN: ${{ secrets.MP_QA_TOKEN }}
         run: |
           APP="desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/MeetingPlz.app"
+          BIN="$(ls "$APP"/Contents/MacOS/* | head -1)"
+          LOG="$HOME/Library/Application Support/com.dai.meetingplz.desktop/debug.log"
           mkdir -p smoke
-          MEETINGPLZ_DEMO=1 "$(ls "$APP"/Contents/MacOS/* | head -1)" > smoke/app.log 2>&1 &
-          sleep 14
-          screencapture -x smoke/mac-overlay.png || true
+          # 1) demo overlay: burst of screenshots to catch the plane mid-flight
+          rm -f "$LOG"
+          MEETINGPLZ_DEMO=1 "$BIN" > smoke/app-demo.log 2>&1 &
+          sleep 2
+          for i in $(seq 1 18); do screencapture -x "smoke/mac-flyby-$(printf %02d $i).png"; sleep 0.25; done
+          sleep 2; screencapture -x smoke/mac-overlay.png
+          lsappinfo list | grep -i -A12 "MeetingPlz" > smoke/lsappinfo.txt || true
+          cp "$LOG" smoke/debug-demo.log 2>/dev/null || true
           pkill -f "MeetingPlz.app/Contents/MacOS" || true
+          sleep 2
+          # 2) signed-in settings window against the real API
+          rm -f "$LOG"
+          MEETINGPLZ_TOKEN="$QA_TOKEN" MEETINGPLZ_OPEN_SETTINGS=1 MEETINGPLZ_DEBUG=1 "$BIN" > smoke/app-settings.log 2>&1 &
+          sleep 8
+          screencapture -x smoke/mac-settings.png
+          cp "$LOG" smoke/debug-settings.log 2>/dev/null || true
+          pkill -f "MeetingPlz.app/Contents/MacOS" || true
+          echo "--- demo log"; cat smoke/debug-demo.log 2>/dev/null || true
+          echo "--- settings log"; cat smoke/debug-settings.log 2>/dev/null || true
+          echo "--- lsappinfo"; cat smoke/lsappinfo.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -166,8 +186,10 @@ jobs:
         run: |
           cp desktop/src-tauri/target/release/bundle/nsis/*-setup.exe MeetingPlz-windows-setup.exe
           ls -la MeetingPlz-windows-setup.exe desktop/src-tauri/target/release/meetingplz.exe
-      - name: Smoke test (demo overlay + screenshot)
+      - name: Smoke test (demo overlay + signed-in settings screenshots)
         shell: pwsh
+        env:
+          QA_TOKEN: ${{ secrets.MP_QA_TOKEN }}
         run: ./desktop/scripts/win-smoke.ps1 -Installer "$PWD\MeetingPlz-windows-setup.exe" -OutDir "$PWD\smoke"
       - uses: actions/upload-artifact@v4
         if: always()

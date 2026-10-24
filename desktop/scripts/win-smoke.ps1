@@ -25,3 +25,17 @@ Start-Sleep -Seconds 9;  Shot 'win-overlay.png'
 Write-Host "Process alive: $(-not $proc.HasExited)"
 Get-Process MeetingPlz -ErrorAction SilentlyContinue | Select-Object Name, Id, MainWindowTitle | Format-Table | Out-String | Write-Host
 Stop-Process -Name MeetingPlz -Force -ErrorAction SilentlyContinue
+$log = Join-Path $env:APPDATA 'com.dai.meetingplz.desktop\debug.log'
+Write-Host '--- demo log'; if (Test-Path $log) { Get-Content $log | Write-Host; Copy-Item $log (Join-Path $OutDir 'debug-demo.log'); Remove-Item $log }
+Start-Sleep -Seconds 2
+
+# Signed-in settings window against the real API
+Remove-Item Env:MEETINGPLZ_DEMO -ErrorAction SilentlyContinue
+$env:MEETINGPLZ_TOKEN = $env:QA_TOKEN
+$env:MEETINGPLZ_OPEN_SETTINGS = '1'
+$env:MEETINGPLZ_DEBUG = '1'
+$proc2 = Start-Process -FilePath $exe -PassThru
+Start-Sleep -Seconds 8; Shot 'win-settings.png'
+Write-Host "Settings run alive: $(-not $proc2.HasExited)"
+Stop-Process -Name MeetingPlz -Force -ErrorAction SilentlyContinue
+Write-Host '--- settings log'; if (Test-Path $log) { Get-Content $log | Write-Host; Copy-Item $log (Join-Path $OutDir 'debug-settings.log') }

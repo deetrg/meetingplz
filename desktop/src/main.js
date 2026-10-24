@@ -70,8 +70,10 @@
         if (!isNaN(sn)) serverOffset = sn - Date.now();
       }
       lastPoll = Date.now();
+      MP.invoke('log_line', { line: 'poll ok: ' + (me && me.email) + ' events=' + events.length }).catch(function () {});
     } catch (e) {
       if (e && e.status === 401) { await MP.invoke('sign_out'); me = null; events = []; token = null; }
+      MP.invoke('log_line', { line: 'poll failed: ' + (e && (e.status || e.message)) }).catch(function () {});
       // network errors: keep the last known events so reminders still fire
     } finally {
       polling = false;

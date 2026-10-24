@@ -56,6 +56,22 @@ pub fn save_token(app: &AppHandle, token: &str) {
     }
 }
 
+/// Dev/QA seed: write straight to the private file (no keychain prompt on headless machines).
+pub fn save_token_file_only(app: &AppHandle, token: &str) {
+    if let Some(f) = token_file(app) {
+        if let Some(dir) = f.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if std::fs::write(&f, token).is_ok() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+    }
+}
+
 pub fn clear_token(app: &AppHandle) {
     if let Ok(entry) = keyring::Entry::new(SERVICE, ACCOUNT) {
         let _ = entry.delete_credential();

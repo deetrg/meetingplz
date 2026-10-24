@@ -59,6 +59,13 @@
       onPointerInCard: function (inCard) { if (flyby) setIgnore(!inCard); }
     });
     if (flyby) startCursorWatch();
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ctx = new AC();
+      await ctx.resume();
+      MP.invoke('log_line', { line: 'audio context: ' + ctx.state });
+      ctx.close();
+    } catch (e) { MP.invoke('log_line', { line: 'audio context error: ' + e }); }
   }
   window.addEventListener('DOMContentLoaded', init);
 })();

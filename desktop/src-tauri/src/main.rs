@@ -43,6 +43,21 @@ fn get_config() -> Value {
 }
 
 #[tauri::command]
+fn log_line(app: AppHandle, line: String) {
+    if std::env::var("MEETINGPLZ_DEBUG").is_err() && !demo_mode() {
+        return;
+    }
+    eprintln!("[meetingplz] {line}");
+    if let Ok(dir) = app.path().app_data_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("debug.log")) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
+#[tauri::command]
 fn get_token(app: AppHandle) -> Option<String> {
     auth::load_token(&app)
 }
@@ -211,6 +226,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_config,
             get_token,
+            log_line,
             sign_in,
             sign_out,
             set_next,
@@ -233,7 +249,17 @@ fn main() {
                 disable_app_nap();
             }
             let handle = app.handle().clone();
+            // Dev/QA only: seed the stored session from the environment (ignored when empty).
+            if let Ok(t) = std::env::var("MEETINGPLZ_TOKEN") {
+                let t = t.trim();
+                if !t.is_empty() {
+                    auth::save_token_file_only(&handle, t);
+                }
+            }
             setup_tray(&handle)?;
+            if std::env::var("MEETINGPLZ_OPEN_SETTINGS").map(|v| v == "1").unwrap_or(false) {
+                let _ = open_settings_window(&handle);
+            }
             if !demo_mode() {
                 ensure_autostart_default(&handle);
             }
