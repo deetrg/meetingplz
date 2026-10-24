@@ -1,0 +1,62 @@
+# MeetingPlz v1 — overnight spec (2026-10-25)
+
+Owner: Dai. Goal by morning: MeetingPlz works on **Mac, Windows, iPhone, Android/desktop browsers (web app) and Chrome**, users **sign in with Google**, dead simple, light, QA'd. No memes, no video, no copyrighted assets.
+
+Repo: `~/meetingplz` → https://github.com/deetrg/meetingplz (public, MIT). Monorepo, each agent owns one folder and stages only its own paths; always `git pull --rebase origin main` before `git push`. Never commit secrets (.p8, .p12, client secrets, VAPID private key, tokens).
+
+## 1. Product (same on every client)
+
+Two minutes before a meeting (lead time configurable), MeetingPlz shows a reminder with one big **Join** button.
+
+- Sign in with Google once (also grants Google Calendar read-only). Settings sync across devices through the account.
+- Reminder styles: `flyby` (default): a line-art plane crosses the screen pulling a banner `QUICK SYNC · IN 2 MIN`, then a reminder card sits in the centre on top of whatever is on screen (the rest stays visible and clickable); `takeover`: the card fills the whole screen (white), nothing else visible until you act.
+- Card content: headline `Join the meeting.`, sub `Your meeting starts in 2 minutes.` (live: `in 2 minutes` / `in 45 seconds` / `now`; when started: headline `It started.`, sub `Everyone's in there. Join now.`), meeting title, time range, calendar email, `with Miles and 3 others`, countdown `1:58` (late: `late by 0:42`), buttons **Join** (primary; `Join on Meet` / `Join Zoom` / `Join on Teams` / `Got it` when no link), **I'm in** (secondary), **Snooze 1 min** (text), and a small press-and-hold `Hold to close` safety.
+- Alarm (synthesized, no files): `jingle` (default), `buzz`, `bell`, `beep`, `off`; repeats every 6 s while shown.
+- Only real meetings: an event counts if it has a call link, another guest, or an organizer who is someone else. Skip all-day, declined, cancelled, outOfOffice/focusTime/workingLocation/birthday, transparent solo blocks.
+- Settings (all clients, synced): `leadSeconds` 30|60|120|180|300|600 (default 120), `style` flyby|takeover, `alarm`, `meetingsOnly` true, `snoozeSeconds` 60.
+
+## 2. Design (monochrome, line-art; refs: black/white hand-drawn habit/quote app mockups)
+
+- Colours: paper `#FFFFFF`, ink `#111111`, soft `#F2F2F2`, line `#111111` at 1.5–2 px, muted text `#6B6B6B`. No other colours anywhere except the OS/brand provider icons. Dark mode: invert (paper `#0E0E0E`, ink `#F5F5F5`).
+- Shapes: 2 px ink outlines, radius 20 px cards / 999 px pills; primary button = solid ink pill with paper text; secondary = outlined pill; no shadows except the floating card (`0 18px 60px rgba(0,0,0,.28)`), no gradients.
+- Type: system stack (`-apple-system, "SF Pro Display", "Segoe UI", Inter, system-ui, sans-serif`); headline 800 weight, tight tracking; body 15–16 px.
+- Illustrations: simple single-weight line drawings (SVG, stroke 2, round caps, no fill except paper): the plane (side view airliner), a banner of letter tiles (outlined squares with ink letters), a little person at a laptop waving for empty states, a calendar with a check for onboarding. All in `shared/art/*.svg`, reused everywhere.
+- App icon: ink rounded square with a paper line-art plane; also a paper version. `shared/art/icon-1024.png` (+ .svg).
+
+## 3. Shared UI (`shared/`)
+
+`shared/reminder/reminder.js`: zero-dependency ES module + IIFE build (`reminder.iife.js`) exposing `MeetingPlzReminder.show(opts) → { update(evt), close() }`, rendering inside a **closed shadow DOM** on a fixed full-viewport host (z-index 2147483647) so it can be injected into any web page (extension), used in the web app, and loaded by the desktop overlay window. Options: `{ event, settings, mode: 'flyby'|'takeover', isPrimary, onJoin, onSnooze, onDismiss, onPointerInCard(bool) }`. It owns the plane animation, card, countdown, late state, hold-to-close, alarm (WebAudio) and `prefers-reduced-motion`. Pure helpers in `shared/core.js` (UMD): `isMeeting(evt)`, `pickDue(events, now, settings, fired)`, `inText(ms)`, `bannerText(title, ms)`, `providerLabel(link)`, `extractMeetingLink(texts)`; unit tests with `node --test`.
+
+## 4. Server (`server/`) — Cloudflare, free plan
+
+- Cloudflare Pages project **meetingplz** (https://meetingplz.pages.dev) serves the marketing page (`/`), `/privacy`, `/terms`, the web app (`/app`) and Pages Functions under `/api/*`. D1 database `meetingplz-db`. A separate Worker `meetingplz-cron` (cron every minute) sends Web Push reminders. Use the wrangler at `~/.aside/cn-tools/node_modules/.bin/wrangler` (account b33c5efefc2d59e27f54f67ae7d97f11, logged in; config in `~/.wrangler/config/default.toml`). KV is NOT used (daily write cap).
+- Google OAuth: a **Web application** client in GCP project `stop-everything-512408` (create it), redirect `https://meetingplz.pages.dev/api/auth/google/callback`; scopes `openid email profile https://www.googleapis.com/auth/calendar.readonly`, `access_type=offline`, `prompt=consent`. Secrets as Pages/Worker secrets.
+- Tables: `users(id, google_sub, email, name, picture, refresh_token_enc, settings_json, created_at)`, `sessions(token_hash, user_id, client, created_at, last_seen)`, `push_subs(id, user_id, endpoint, p256dh, auth, ua, created_at)`, `events_cache(user_id, fetched_at, json)`, `fired(user_id, event_key, fired_at)`. Refresh tokens AES-GCM encrypted with a `TOKEN_KEY` secret.
+- API (JSON; auth = `Authorization: Bearer <session token>` or the `mp_session` cookie; CORS allow `chrome-extension://*`, `tauri://localhost`, `http://tauri.localhost`, `capacitor://localhost` and `http://127.0.0.1:*`):
+  - `GET /api/auth/google/start?client=web|ext|desktop|ios&return=<url>` → Google. Allowed `return`: `https://*.chromiumapp.org/*`, `http://127.0.0.1:<port>/*`, `meetingplz://auth`. Callback creates/updates the user, creates a session; web → cookie + redirect `/app`; others → redirect `return#token=<token>`.
+  - `GET /api/me` → `{ email, name, picture, settings }`; `PUT /api/settings` (validated partial) → settings; `POST /api/logout`.
+  - `GET /api/upcoming` → `{ now, events: [{ key, id, title, start, end, link, provider, calendar, attendees: "with Miles and 3 others", attendeeCount, isMeeting, allDay, declined }] }` for the next 24 h across all selected calendars (cache 90 s per user in D1). Filtering by `meetingsOnly` happens client-side via `shared/core.js` so every client behaves the same.
+  - `GET /api/push/vapid` → public key; `POST /api/push/subscribe`, `DELETE /api/push/subscribe`.
+  - `POST /api/test-reminder` → sends a test push to the caller's subscriptions in 5 s.
+- Cron worker: every minute, for users with push subscriptions, refresh `/upcoming` data if older than 5 min, and for each meeting with `start - leadSeconds <= now < start` not in `fired`, send a Web Push (title `Join the meeting.`, body `Quick sync starts in 2 min · Join on Meet`, `data.url` = meeting link, actions `Join`, `Snooze 1 min`), record `fired`. VAPID keys generated once (private key as secret).
+- Web app `/app` (PWA: manifest, service worker, icons, works installed on iOS home screen): signed out → one screen with the plane illustration, `MeetingPlz.` and **Continue with Google**; signed in → `Next up` list (next 24 h, meetings only), a big **Test it** button, settings (lead, style, alarm), **Turn on notifications** (on iOS shows "Add to Home Screen first" with the 2-step hint when not standalone), and a **Get MeetingPlz for…** row linking Mac / Windows / Chrome / iPhone downloads. While the app tab is open it shows the in-page reminder itself (shared component) and plays the alarm; when closed, push does the job.
+
+## 5. Chrome extension (`extension/`, MV3)
+Sign in via `chrome.identity.launchWebAuthFlow` to `/api/auth/google/start?client=ext&return=https://<id>.chromiumapp.org/cb`; store token in `chrome.storage.local`. `chrome.alarms` every minute: fetch `/api/upcoming` + settings, compute due with `shared/core.js`. When due: inject `reminder.iife.js` into the active tab of the focused window (`scripting.executeScript`); if the tab can't be scripted (chrome://, Web Store, PDF), open a small centred popup window (`chrome.windows.create({type:'popup'})`) with the same reminder. Badge shows minutes to next meeting. Popup UI: signed-out → Continue with Google; signed-in → next meeting, Test it, settings link to the web app. Ship as `extension/dist/meetingplz-extension.zip` (+ unpacked folder) and a fixed `key` in manifest so the extension id (and chromiumapp.org redirect) is stable.
+
+## 6. Desktop (`desktop/`, Tauri 2, Mac + Windows)
+Tray/menu-bar app, ~10 MB. Sign in: open the browser to `/api/auth/google/start?client=desktop&return=http://127.0.0.1:<port>/cb`, catch the token on a loopback server. Poll `/api/upcoming` every 60 s. When due: one overlay window per display, transparent, frameless, always on top above full-screen apps (macOS: NSWindow level screen-saver + canJoinAllSpaces/fullScreenAuxiliary; Windows: topmost), loads the shared reminder; flyby style is click-through outside the card. Launch at login on by default. Builds: Mac (arm64 + x64 universal if easy) signed with Developer ID + notarized + stapled on GitHub Actions; Windows NSIS installer (unsigned). Releases attached to GitHub release `v1.0.0`: `MeetingPlz-mac.dmg` (or zip), `MeetingPlz-windows-setup.exe`.
+
+## 7. iPhone (`ios/`, SwiftUI, iOS 17+)
+Bundle id `com.dai.meetingplz`. Sign in with `ASWebAuthenticationSession` to `/api/auth/google/start?client=ios&return=meetingplz://auth` (callback scheme `meetingplz`). Screens: sign-in (plane illustration + Continue with Google), Next up list, Test it, settings (same keys). Reminders: fetch `/api/upcoming` on launch, on foreground, and in `BGAppRefreshTask`; schedule **time-sensitive local notifications** at `start - leadSeconds` for the next 24 h (rescheduled on each fetch) with actions Join (opens link) / Snooze; when the app is open at reminder time, show a full-screen SwiftUI reminder (same card design, plane animation). On iOS 26+, also schedule an **AlarmKit** alarm per meeting if available (`#available`), so it rings like a real alarm with a Join button; guard everything so iOS 17–25 still works. Build + upload to **TestFlight** from GitHub Actions (macos runner, xcodebuild archive with `-allowProvisioningUpdates` + App Store Connect API key auth), export compliance `ITSAppUsesNonExemptEncryption=false`. Create the App Store Connect app record (name "MeetingPlz", SKU `meetingplz`, bundle id registered via the API) in the browser if the API can't. Internal testing group with Dai (mrdee3010@icloud.com).
+
+## 8. Secrets already set in GitHub Actions (repo deetrg/meetingplz)
+`APPLE_API_KEY_P8_BASE64`, `APPLE_API_KEY_ID` (3SRX7UKS6U), `APPLE_API_ISSUER`, `APPLE_TEAM_ID` (4NS83V9Q39), `MAC_CERT_P12_BASE64` (contains the identity "Developer ID Application: DAI TRUONG QUOC (4NS83V9Q39)"), `MAC_CERT_PASSWORD`. Locally: `~/.appstoreconnect/private_keys/AuthKey_3SRX7UKS6U.p8` works with `xcrun notarytool --key ... --key-id 3SRX7UKS6U --issuer bfea9a29-2504-45b9-be83-d4796218495b`.
+
+## 9. QA rules
+- Every client: unit tests where logic lives; screenshots of every screen saved to `/Users/macbookpro13m1/.aside/u/0/sessions/2026-10-22_SXkPWUk0DdwFub6U/tmp/v1qa/<client>-<screen>.png`.
+- Real-device checks happen at the end through the Mac bridge (owned by the parent agent; builders do not use it).
+- "Works" means verified on the real runtime, not a mock. If something could not be verified, say so plainly.
+
+## 10. Environment facts for builders
+Node 26 (`node`, `npm`), macOS 26 arm64, Xcode CLT + Xcode present (local `xcodebuild` hangs in this sandbox: build iOS/Mac on GitHub Actions), no Rust yet (install via `curl https://sh.rustup.rs -sSf | sh -s -- -y` if needed), no `gh` CLI (use the GitHub REST API with the token from `printf 'protocol=https\nhost=github.com\n' | git credential-osxkeychain get`), ffmpeg via `npx ffmpeg-static`, Python3 + yt_dlp (not needed). Every Bash call needs a title; BSD sed needs `sed -i ''`; ps/pgrep blocked; `timeout` missing. Keep browser tabs ≤ 2 and close them. Never print secrets.
