@@ -61,7 +61,7 @@ struct ReminderOverlay: View {
             let started = ms <= 0
             VStack(spacing: 12) {
                 Text(started ? "It started." : "Join the meeting.")
-                    .font(.mpHead(takeover ? 40 : 30)).tracking(-0.8)
+                    .font(.mpHead(takeover ? 40 : 30)).tracking(-0.8).lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(MP.ink)
                     .multilineTextAlignment(.center)
                 Text(started ? "Everyone's in there. Join now." : "Your meeting starts \(Core.inText(ms)).")

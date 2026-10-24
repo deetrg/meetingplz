@@ -49,7 +49,7 @@ final class AppModel: ObservableObject {
             MPEvent(key: k, id: k, title: t, start: now.addingTimeInterval(m * 60), end: now.addingTimeInterval((m + len) * 60), link: link, calendar: "dai@example.com", attendees: att)
         }
         me = Me(email: "dai@example.com", name: "Dai", picture: nil, settings: nil)
-        events = [ev("a", "Quick sync", 2, 30, "https://meet.google.com/abc-defg-hij", "with Miles and 3 others"),
+        events = [ev("a", "Quick sync", 32, 30, "https://meet.google.com/abc-defg-hij", "with Miles and 3 others"),
                   ev("b", "Design review", 95, 45, "https://zoom.us/j/123456", "with Lan and 1 other"),
                   ev("c", "Weekly 1:1", 240, 30, "https://teams.microsoft.com/l/meetup-join/x", "with Phi")]
         if CommandLine.arguments.contains("-mpTakeover") { settings.style = "takeover" }
