@@ -109,6 +109,12 @@
   async function init() {
     autostart = await MP.invoke('get_autostart');
     MP.listen('state-changed', function (e) { apply(e.payload); });
+    MP.listen('link-result', function (e) {
+      var r = e.payload || {};
+      linking = false;
+      acctErr = r.ok ? '' : (r.status === 409 ? 'That Google account already belongs to another MeetingPlz account.' : 'Could not add that account. Try again.');
+      render();
+    });
     var cur = await MP.invoke('get_state');
     if (cur) apply(cur); else render();
     MP.emit('refresh');

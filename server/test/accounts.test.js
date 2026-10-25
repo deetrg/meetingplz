@@ -73,15 +73,23 @@ const gev = (over) => ({
   attendees: [{ email: 'x@y.com', self: true, responseStatus: 'accepted' }, { email: 'miles@x.com' }], ...over,
 });
 
-async function twoAccounts(env, g, client = 'ext') {
-  const { token } = await signIn(env, 'A');
-  const ret = 'https://abc.chromiumapp.org/cb';
+// Non-web link flow: callback (no cookie) -> redirect with #link_code -> client redeems with its Bearer token.
+const codeOf = (cb) => (cb.headers.get('location') || '').split('#link_code=')[1];
+const complete = (env, token, code) => handleApi(req('/api/accounts/link/complete', bearer(token, { method: 'POST', body: JSON.stringify({ code }) })), env);
+async function linkCallback(env, token, n, client = 'ext', ret = 'https://abc.chromiumapp.org/cb') {
   const r = await linkUrl(env, token, { client, return: ret });
   assert.equal(r.status, 200);
   const { url } = await r.json();
-  const g2 = new URL(url);
-  const cb = await handleApi(req(`/api/auth/google/callback?code=c-B&state=${encodeURIComponent(g2.searchParams.get('state'))}`), env); // no cookie: non-web link flow
-  return { token, cb, url: g2 };
+  return handleApi(req(`/api/auth/google/callback?code=c-${n}&state=${encodeURIComponent(new URL(url).searchParams.get('state'))}`), env);
+}
+async function twoAccounts(env, g, client = 'ext') {
+  const { token } = await signIn(env, 'A');
+  const cb = await linkCallback(env, token, 'B', client);
+  const code = codeOf(cb);
+  assert.ok(code);
+  const done = await complete(env, token, code);
+  assert.equal(done.status, 200);
+  return { token, cb, code, done };
 }
 
 test('link: returns a Google URL with select_account and a signed link state; validates client/return; needs auth', async () => {
@@ -105,12 +113,20 @@ test('link: returns a Google URL with select_account and a signed link state; va
   } finally { g.restore(); }
 });
 
-test('link (non-web): attaches the second account, redirects with #linked=1, /api/me lists both', async () => {
+test('link (non-web): callback attaches nothing and redirects with #link_code; complete attaches; /api/me lists both', async () => {
   const env = await makeEnv();
   const g = multiGoogle({ A, B });
   try {
-    const { token, cb } = await twoAccounts(env, g);
-    assert.equal(cb.headers.get('location'), 'https://abc.chromiumapp.org/cb#linked=1');
+    const { token: t0 } = await signIn(env, 'A');
+    const cb0 = await linkCallback(env, t0, 'B');
+    assert.match(cb0.headers.get('location'), /^https:\/\/abc\.chromiumapp\.org\/cb#link_code=[A-Za-z0-9_-]{20,}$/);
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM google_accounts').get().n, 1, 'callback must not attach');
+    const stored = env.DB.raw.prepare('SELECT * FROM link_codes').get();
+    assert.ok(!stored.code_hash.includes(codeOf(cb0)), 'only a hash of the code is stored');
+    assert.ok(stored.refresh_token_enc.startsWith('v1.') && !stored.refresh_token_enc.includes('rt-B'));
+    assert.equal((await complete(env, t0, codeOf(cb0))).status, 200);
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM link_codes').get().n, 0);
+    const token = t0;
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM users').get().n, 1);
     const me = await (await handleApi(req('/api/me', bearer(token)), env)).json();
     assert.deepEqual(me.accounts.map((a) => [a.email, a.primary, a.error]), [['a@one.com', true, null], ['b@two.com', false, null]]);
@@ -162,12 +178,9 @@ test('link: a sub owned by another user with no other accounts is moved; with ot
     const { token: tB } = await signIn(env, 'B'); // user B alone
     const { token: tA } = await signIn(env, 'A');
     env.DB.raw.prepare("INSERT INTO push_subs (user_id,endpoint,p256dh,auth,created_at) SELECT id,'https://p/old','a','b',1 FROM users WHERE google_sub='sub-B'").run();
-    const link = async (token, n, st) => {
-      const { url } = await (await linkUrl(env, token, { client: 'ext', return: 'https://abc.chromiumapp.org/cb' })).json();
-      return handleApi(req(`/api/auth/google/callback?code=c-${n}&state=${encodeURIComponent(new URL(url).searchParams.get('state'))}`), env);
-    };
+    const link = async (token, n) => complete(env, token, codeOf(await linkCallback(env, token, n)));
     const ok = await link(tA, 'B');
-    assert.equal(ok.headers.get('location'), 'https://abc.chromiumapp.org/cb#linked=1');
+    assert.equal(ok.status, 200);
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM users').get().n, 1, 'empty shell user removed');
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM push_subs').get().n, 0);
     assert.equal((await handleApi(req('/api/me', bearer(tB)), env)).status, 401, 'old session of the folded user is gone');
@@ -176,7 +189,8 @@ test('link: a sub owned by another user with no other accounts is moved; with ot
     // user C links... B which now belongs to A (A has 2 accounts) -> account_in_use
     const { token: tC } = await signIn(env, 'C');
     const bad = await link(tC, 'B');
-    assert.equal(bad.headers.get('location'), 'https://abc.chromiumapp.org/cb#error=account_in_use');
+    assert.equal(bad.status, 409);
+    assert.equal((await bad.json()).error, 'account_in_use');
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM google_accounts WHERE google_sub = ?').get('sub-B').n, 1);
     assert.equal((await (await handleApi(req('/api/me', bearer(tC)), env)).json()).accounts.length, 1);
   } finally { g.restore(); }
@@ -188,8 +202,7 @@ test('linking an already-linked account refreshes it and clears the error', asyn
   try {
     const { token } = await twoAccounts(env, g);
     env.DB.raw.prepare("UPDATE google_accounts SET last_error = 'reauth' WHERE google_sub = 'sub-B'").run();
-    const { url } = await (await linkUrl(env, token, { client: 'ext', return: 'https://abc.chromiumapp.org/cb' })).json();
-    await handleApi(req(`/api/auth/google/callback?code=c-B&state=${encodeURIComponent(new URL(url).searchParams.get('state'))}`), env);
+    assert.equal((await complete(env, token, codeOf(await linkCallback(env, token, 'B')))).status, 200);
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM google_accounts').get().n, 2);
     const me = await (await handleApi(req('/api/me', bearer(token)), env)).json();
     assert.equal(me.accounts[1].error, null);
@@ -342,4 +355,69 @@ test('migration 0002 moves each existing user token/email into google_accounts a
   assert.equal(rows[0].last_error, null);
   assert.match(rows[0].id, /^[0-9a-f]{32}$/);
   assert.notEqual(rows[0].id, rows[1].id);
+});
+
+test('link/complete: replay, wrong user, expiry, bad input, and no bearer', async () => {
+  const env = await makeEnv();
+  const g = multiGoogle({ A, B, C });
+  try {
+    const { token: tA } = await signIn(env, 'A');
+    const { token: tC } = await signIn(env, 'C');
+    // replay: the code works once
+    const code = codeOf(await linkCallback(env, tA, 'B'));
+    assert.equal((await complete(env, tA, code)).status, 200);
+    const replay = await complete(env, tA, code);
+    assert.equal(replay.status, 400);
+    assert.equal((await replay.json()).error, 'bad_code');
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM google_accounts WHERE user_id = (SELECT id FROM users WHERE google_sub = ?)').get('sub-A').n, 2);
+
+    // mismatch: user C cannot redeem a code minted for user A; nothing attached, code still valid for A
+    const idA = env.DB.raw.prepare("SELECT id FROM users WHERE google_sub = 'sub-A'").get().id;
+    const code2 = codeOf(await linkCallback(env, tA, 'B')); // re-link of the same account, just to mint a code for A
+    const bad = await complete(env, tC, code2);
+    assert.equal(bad.status, 403);
+    assert.equal((await bad.json()).error, 'link_failed');
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM google_accounts WHERE user_id = ?').get(idA).n, 2);
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM link_codes').get().n, 1);
+    assert.equal(env.DB.raw.prepare("SELECT COUNT(*) n FROM google_accounts WHERE email = 'b@two.com'").get().n, 1);
+    assert.equal((await complete(env, tA, code2)).status, 200);
+
+    // expiry: 5 minutes
+    const code3 = codeOf(await linkCallback(env, tC, 'A')); // would be account_in_use at complete, but expires first
+    env.DB.raw.prepare('UPDATE link_codes SET expires_at = ?').run(Date.now() - 1000);
+    const exp = await complete(env, tC, code3);
+    assert.equal(exp.status, 400);
+    assert.equal((await exp.json()).error, 'code_expired');
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM link_codes').get().n, 0);
+    const minted = env.DB.raw.prepare('SELECT 1 FROM users').all().length; assert.ok(minted);
+
+    // ttl is 5 minutes
+    const code4 = codeOf(await linkCallback(env, tC, 'B'));
+    const ttl = env.DB.raw.prepare('SELECT expires_at e FROM link_codes').get().e - Date.now();
+    assert.ok(ttl > 290000 && ttl <= 300000, String(ttl));
+    assert.ok(code4);
+
+    // bad input / no auth
+    assert.equal((await complete(env, tA, 'nope')).status, 400);
+    assert.equal((await handleApi(req('/api/accounts/link/complete', { method: 'POST', body: JSON.stringify({}) }), env)).status, 401);
+    assert.equal((await handleApi(req('/api/accounts/link/complete', bearer(tA, { method: 'POST', body: '{}' })), env)).status, 400);
+  } finally { g.restore(); }
+});
+
+test('link (non-web) without calendar scope or a refresh token ends in #error and parks nothing', async () => {
+  const env = await makeEnv();
+  const g = multiGoogle({ A, B }, { noRefresh: true });
+  try {
+    const { token } = await signIn(env, 'A');
+    const cb = await linkCallback(env, token, 'B');
+    assert.equal(cb.headers.get('location'), 'https://abc.chromiumapp.org/cb#error=no_refresh_token');
+    assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM link_codes').get().n, 0);
+  } finally { g.restore(); }
+});
+
+test('cron prunes expired link codes', async () => {
+  const env = await makeEnv();
+  env.DB.raw.prepare("INSERT INTO link_codes VALUES ('h','u','s','e','n','p','enc', 1)").run();
+  await runCron(env, Date.UTC(2026, 9, 25, 10, 0, 0), async () => ({ ok: true }));
+  assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM link_codes').get().n, 0);
 });

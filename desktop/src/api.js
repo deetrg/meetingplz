@@ -35,6 +35,9 @@
       });
       await invoke('open_url', { url: r.url });
     },
+    completeLink: function (code) {
+      return call('/api/accounts/link/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) });
+    },
     removeAccount: function (id) { return call('/api/accounts/' + encodeURIComponent(id), { method: 'DELETE' }); },
     logout: function () { return call('/api/logout', { method: 'POST' }).catch(function () {}); }
   };

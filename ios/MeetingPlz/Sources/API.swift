@@ -53,6 +53,9 @@ struct APIClient {
         let (data, resp) = try await URLSession.shared.data(for: req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(code) else {
+            if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], (obj["error"] as? String) == "account_in_use" {
+                throw APIError(status: code, message: "That Google account already belongs to another MeetingPlz account.")
+            }
             throw APIError(status: code, message: code == 401 ? "Signed out. Please sign in again." : "Server error (\(code)).")
         }
         return data
@@ -70,6 +73,10 @@ struct APIClient {
         let l = try await request("POST", "/api/accounts/link", body: body, as: Link.self)
         guard let u = URL(string: l.url) else { throw APIError(status: 0, message: "Could not start adding an account.") }
         return u
+    }
+    func completeLink(code: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["code": code])
+        try await raw("POST", "/api/accounts/link/complete", body: body)
     }
     func removeAccount(_ id: String) async throws {
         let safe = id.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? id
@@ -123,15 +130,16 @@ final class WebAuth: NSObject, ASWebAuthenticationPresentationContextProviding {
         return cb
     }
 
-    /// Adds another Google account: `url` comes from /api/accounts/link. Returns when Google redirected back with #linked=1.
-    func link(url: URL) async throws {
+    /// Adds another Google account: `url` comes from /api/accounts/link. Returns the one-time link code from the redirect;
+    /// the caller redeems it with POST /api/accounts/link/complete.
+    func link(url: URL) async throws -> String {
         let cb = try await authenticate(url)
         let comps = URLComponents(url: cb, resolvingAgainstBaseURL: false)
         for raw in [comps?.fragment, comps?.query] {
             guard let raw else { continue }
             for pair in raw.split(separator: "&") {
                 let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
-                if kv.count == 2, kv[0] == "linked", kv[1] == "1" { return }
+                if kv.count == 2, kv[0] == "link_code", !kv[1].isEmpty { return kv[1].removingPercentEncoding ?? kv[1] }
                 if kv.count == 2, kv[0] == "error" {
                     let msg: String
                     switch kv[1] {

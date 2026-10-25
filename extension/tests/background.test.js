@@ -283,8 +283,11 @@ test('manifest is valid MV3 with a fixed key and required permissions', () => {
 
 test('addAccount asks the server for a link URL, runs the auth flow with the chromiumapp return, refreshes /api/me', async () => {
   const m = mock({
-    authResult: 'https://abc.chromiumapp.org/cb#linked=1',
-    responses: Object.assign(upcoming([]), { '/api/accounts/link': { url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' } })
+    authResult: 'https://abc.chromiumapp.org/cb#link_code=CODE123',
+    responses: Object.assign(upcoming([]), {
+      '/api/accounts/link': { url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' },
+      '/api/accounts/link/complete': { ok: true }
+    })
   });
   const r = await m.bg.addAccount();
   assert.equal(r.ok, true);
@@ -292,15 +295,21 @@ test('addAccount asks the server for a link URL, runs the auth flow with the chr
   assert.equal(link.init.method, 'POST');
   assert.deepEqual(JSON.parse(link.init.body), { client: 'ext', return: 'https://abc.chromiumapp.org/cb' });
   assert.equal(m.calls.authUrl, 'https://accounts.google.com/o/oauth2/v2/auth?x=1');
-  assert.ok(m.calls.fetch.some((c) => c.url.endsWith('/api/me')));
+  const comp = m.calls.fetch.find((c) => c.url.endsWith('/api/accounts/link/complete'));
+  assert.equal(comp.init.method, 'POST');
+  assert.equal(comp.init.headers.Authorization, 'Bearer tok');
+  assert.deepEqual(JSON.parse(comp.init.body), { code: 'CODE123' });
+  assert.ok(m.calls.fetch.indexOf(comp) < m.calls.fetch.findIndex((c) => c.url.endsWith('/api/me')), 'completes before refreshing');
 });
 
-test('addAccount surfaces #error= from the redirect and fails without #linked=1', async () => {
+test('addAccount surfaces #error= from the redirect and fails without #link_code', async () => {
   const resp = Object.assign(upcoming([]), { '/api/accounts/link': { url: 'https://accounts.google.com/x' } });
   const a = mock({ authResult: 'https://abc.chromiumapp.org/cb#error=account_in_use', responses: resp });
   await assert.rejects(() => a.bg.addAccount(), /account_in_use/);
   const b = mock({ authResult: 'https://abc.chromiumapp.org/cb', responses: resp });
   await assert.rejects(() => b.bg.addAccount(), /not linked/);
+  const c = mock({ authResult: 'https://abc.chromiumapp.org/cb#link_code=X', responses: Object.assign(resp, { '/api/accounts/link/complete': { status: 409, body: { error: 'account_in_use' } } }) });
+  await assert.rejects(() => c.bg.addAccount(), /http 409/);
 });
 
 test('removeAccount DELETEs the account and refreshes', async () => {

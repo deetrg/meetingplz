@@ -143,6 +143,15 @@
       if (!cfg.demo && Date.now() - lastPoll > POLL_MS + 5000) poll();
     });
     MP.listen('auth-changed', function () { poll(); });
+    // Browser finished linking another Google account: redeem the one-time code with our own session.
+    MP.listen('link-code', function (e) {
+      MP.completeLink(String(e.payload || '')).then(function () {
+        MP.emit('link-result', { ok: true });
+        return poll();
+      }).catch(function (err) {
+        MP.emit('link-result', { ok: false, status: err && err.status });
+      });
+    });
     MP.listen('refresh', function () { poll(); });
     MP.listen('test-it', function () { showTest(); });
     MP.listen('reminder-action', function (e) {

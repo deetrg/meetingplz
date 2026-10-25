@@ -8,6 +8,7 @@ import { b64uDecode, b64uEncode, hmacSign, hmacVerify, json, parseCookies, rando
 
 const SESSION_DAYS = 90;
 const CLIENTS = ['web', 'ext', 'desktop', 'ios'];
+const LINK_CODE_MS = 5 * 60000;
 
 /* ---------- helpers ---------- */
 
@@ -120,23 +121,18 @@ function failRedirect(client, ret, code, st) {
 }
 
 async function wipeUserRows(env, userId) {
-  for (const t of ['push_subs', 'sessions', 'events_cache', 'fired', 'snoozes', 'google_accounts']) {
+  for (const t of ['push_subs', 'sessions', 'events_cache', 'fired', 'snoozes', 'google_accounts', 'link_codes']) {
     await env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(userId).run();
   }
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
 }
 
-// Attach the Google account in `claims` to MeetingPlz user `st.link`. Returns an error code or ''.
-async function linkAccount(request, env, url, st, claims, tok) {
+// Attach a Google account (claims + encrypted refresh token) to a MeetingPlz user. Returns an error code or ''.
+async function attachAccount(env, userId, acct) {
   const now = Date.now();
-  const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(st.link).first();
+  const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(userId).first();
   if (!user) return 'link_failed';
-  if (st.c === 'web') {
-    const who = await authed(request, env, url);
-    if (!who || who.id !== st.link) return 'link_failed';
-  }
-  const enc = tok.refresh_token ? await encryptToken(tok.refresh_token, env.TOKEN_KEY) : null;
-  const existing = await env.DB.prepare('SELECT * FROM google_accounts WHERE google_sub = ?').bind(claims.sub).first();
+  const existing = await env.DB.prepare('SELECT * FROM google_accounts WHERE google_sub = ?').bind(acct.sub).first();
   if (existing) {
     if (existing.user_id !== user.id) {
       const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM google_accounts WHERE user_id = ?').bind(existing.user_id).first();
@@ -145,17 +141,58 @@ async function linkAccount(request, env, url, st, claims, tok) {
       await env.DB.prepare('UPDATE google_accounts SET user_id = ? WHERE id = ?').bind(user.id, existing.id).run();
       await wipeUserRows(env, existing.user_id);
     }
-    if (!enc && !existing.refresh_token_enc) return 'no_refresh_token';
+    if (!acct.enc && !existing.refresh_token_enc) return 'no_refresh_token';
     await env.DB.prepare('UPDATE google_accounts SET email = ?, name = ?, picture = ?, refresh_token_enc = ?, last_error = NULL WHERE id = ?')
-      .bind(claims.email || '', claims.name || '', claims.picture || '', enc || existing.refresh_token_enc, existing.id).run();
+      .bind(acct.email || '', acct.name || '', acct.picture || '', acct.enc || existing.refresh_token_enc, existing.id).run();
   } else {
-    if (!enc) return 'no_refresh_token';
+    if (!acct.enc) return 'no_refresh_token';
     await env.DB.prepare(
       'INSERT INTO google_accounts (id, user_id, google_sub, email, name, picture, refresh_token_enc, added_at, last_error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)',
-    ).bind(randomId(), user.id, claims.sub, claims.email || '', claims.name || '', claims.picture || '', enc, now).run();
+    ).bind(randomId(), user.id, acct.sub, acct.email || '', acct.name || '', acct.picture || '', acct.enc, now).run();
   }
   await env.DB.prepare('DELETE FROM events_cache WHERE user_id = ?').bind(user.id).run();
   return '';
+}
+
+// Callback side of linking. Web: attach now (needs the logged-in cookie user == state user).
+// Other clients: attach NOTHING here; park the Google tokens under a one-time code that only the
+// signed-in client (Bearer token of the same user) can redeem via POST /api/accounts/link/complete.
+async function linkAccount(request, env, url, st, claims, tok) {
+  const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(st.link).first();
+  if (!user) return { error: 'link_failed' };
+  const enc = tok.refresh_token ? await encryptToken(tok.refresh_token, env.TOKEN_KEY) : null;
+  if (st.c === 'web') {
+    const who = await authed(request, env, url);
+    if (!who || who.id !== st.link) return { error: 'link_failed' };
+    const err = await attachAccount(env, user.id, { sub: claims.sub, email: claims.email, name: claims.name, picture: claims.picture, enc });
+    return err ? { error: err } : {};
+  }
+  if (!enc) return { error: 'no_refresh_token' };
+  const code = randomToken(32);
+  await env.DB.prepare(
+    'INSERT INTO link_codes (code_hash, user_id, google_sub, email, name, picture, refresh_token_enc, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind(await sha256Hex(env.SESSION_PEPPER + 'link:' + code), user.id, claims.sub, claims.email || '', claims.name || '', claims.picture || '', enc, Date.now() + LINK_CODE_MS).run();
+  return { code };
+}
+
+async function accountsLinkComplete(request, env, url, user) {
+  const b = await readBody(request);
+  const code = b && typeof b.code === 'string' ? b.code : '';
+  if (!code || code.length > 200) return json({ error: 'bad_code' }, 400);
+  const hash = await sha256Hex(env.SESSION_PEPPER + 'link:' + code);
+  const row = await env.DB.prepare('SELECT * FROM link_codes WHERE code_hash = ?').bind(hash).first();
+  if (!row) return json({ error: 'bad_code' }, 400);
+  if (row.expires_at < Date.now()) {
+    await env.DB.prepare('DELETE FROM link_codes WHERE code_hash = ?').bind(hash).run();
+    return json({ error: 'code_expired' }, 400);
+  }
+  if (row.user_id !== user.id) return json({ error: 'link_failed' }, 403);
+  // one-time: claim the row first so a replay (or a parallel call) cannot attach twice
+  const claim = await env.DB.prepare('DELETE FROM link_codes WHERE code_hash = ?').bind(hash).run();
+  if (!claim.meta || claim.meta.changes !== 1) return json({ error: 'bad_code' }, 400);
+  const err = await attachAccount(env, user.id, { sub: row.google_sub, email: row.email, name: row.name, picture: row.picture, enc: row.refresh_token_enc });
+  if (err) return json({ error: err }, err === 'account_in_use' ? 409 : 400);
+  return json({ ok: true });
 }
 
 async function authCallback(request, env, url) {
@@ -167,6 +204,8 @@ async function authCallback(request, env, url) {
   if (!st || st.e < Date.now()) return json({ error: 'state_expired' }, 400);
   // Desktop/extension/iOS link flows open Google in a different browser than the one that asked for the URL,
   // so the nonce cookie can only be required when the flow stays in one browser (web, and every normal sign-in).
+  // Those flows attach nothing in the callback: the account is parked under a one-time link_code and only the
+  // signed-in client of the same user can redeem it (POST /api/accounts/link/complete).
   if (!(st.link && st.c !== 'web')) {
     const nonce = st.n ? parseCookies(request.headers.get('cookie'))[`mp_oauth_${String(st.n).slice(0, 10)}`] : '';
     if (!nonce || nonce !== st.n) return json({ error: 'bad_state' }, 400);
@@ -186,10 +225,10 @@ async function authCallback(request, env, url) {
 
   const clear = cookie(`mp_oauth_${String((st && st.n) || '').slice(0, 10)}`, '', { maxAge: 0, path: '/api/auth' });
   if (st.link) {
-    const err = await linkAccount(request, env, url, st, claims, tok);
-    if (err) return failRedirect(st.c, st.r, err, st);
+    const res = await linkAccount(request, env, url, st, claims, tok);
+    if (res.error) return failRedirect(st.c, st.r, res.error, st);
     if (st.c === 'web') return redirect('/app?linked=1', [clear]);
-    return redirect(`${st.r}#linked=1`, [clear]);
+    return redirect(`${st.r}#link_code=${res.code}`, [clear]);
   }
 
   const now = Date.now();
@@ -359,6 +398,7 @@ const ROUTES = {
   'POST /api/test-reminder': { fn: testReminder, auth: true },
   'POST /api/snooze': { fn: snooze, auth: true },
   'POST /api/accounts/link': { fn: accountsLink, auth: true },
+  'POST /api/accounts/link/complete': { fn: accountsLinkComplete, auth: true },
 };
 
 export async function handleApi(request, env, ctx) {

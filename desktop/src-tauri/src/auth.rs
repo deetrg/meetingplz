@@ -95,12 +95,12 @@ p{color:#6b6b6b;margin:0}
 (function(){
   var h=document.getElementById('h'),p=document.getElementById('p');
   var q=new URLSearchParams(location.hash.slice(1));
-  var t=q.get('token'),linked=q.get('linked'),er=q.get('error');
+  var t=q.get('token'),lc=q.get('link_code'),er=q.get('error');
   history.replaceState(null,'','/cb');
-  if(linked){
-    fetch('/linked',{method:'POST',body:'1'}).then(function(r){
+  if(lc){
+    fetch('/link_code',{method:'POST',body:lc}).then(function(r){
       if(!r.ok)throw 0;
-      h.textContent='Account added.';p.textContent='You can close this tab and go back to MeetingPlz.';
+      h.textContent='Almost there.';p.textContent='You can close this tab and go back to MeetingPlz.';
     }).catch(function(){h.textContent='Could not add the account.';p.textContent='Go back to MeetingPlz and try again.';});
     return;
   }
@@ -121,7 +121,7 @@ fn valid_token(t: &str) -> bool {
     !t.is_empty() && t.len() <= 2048 && t.chars().all(|c| c.is_ascii_alphanumeric() || "-_.~+/=".contains(c))
 }
 
-/// Starts the loopback listener that catches the browser redirect (`#token=...` or `#linked=1`).
+/// Starts the loopback listener that catches the browser redirect (`#token=...` or `#link_code=...`).
 /// Returns the port. A newer listener replaces an older one.
 pub fn spawn_listener(app: &AppHandle) -> Result<u16, String> {
     let server = tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
@@ -161,10 +161,17 @@ pub fn spawn_listener(app: &AppHandle) -> Result<u16, String> {
                     return;
                 }
                 let _ = req.respond(tiny_http::Response::from_string("bad token").with_status_code(400));
-            } else if method == "POST" && path == "/linked" {
-                let _ = req.respond(tiny_http::Response::from_string("ok"));
-                let _ = app2.emit("auth-changed", ());
-                return;
+            } else if method == "POST" && path == "/link_code" {
+                // The app (not this tiny server) redeems the code with its own session token.
+                let mut body = String::new();
+                let _ = req.as_reader().take(1024).read_to_string(&mut body);
+                let code = body.trim().to_string();
+                if valid_token(&code) {
+                    let _ = req.respond(tiny_http::Response::from_string("ok"));
+                    let _ = app2.emit("link-code", code);
+                    return;
+                }
+                let _ = req.respond(tiny_http::Response::from_string("bad code").with_status_code(400));
             } else {
                 let _ = req.respond(tiny_http::Response::from_string("not found").with_status_code(404));
             }

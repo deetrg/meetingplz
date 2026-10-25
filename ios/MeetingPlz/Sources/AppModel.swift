@@ -86,7 +86,8 @@ final class AppModel: ObservableObject {
         defer { linking = false }
         do {
             let url = try await api.linkURL()
-            try await WebAuth.shared.link(url: url)
+            let code = try await WebAuth.shared.link(url: url)
+            try await api.completeLink(code: code)
             await refresh()
         } catch let e as NSError where e.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && e.code == 1 {
             // user cancelled

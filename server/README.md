@@ -3,7 +3,7 @@
 Cloudflare, free plan. No KV.
 
 - **Pages project `meetingplz`** (https://meetingplz.pages.dev): marketing site (`/`, `/privacy`, `/terms`, `/chrome`, `/iphone`), the web app (`/app`, PWA) and Pages Functions under `/api/*`.
-- **D1 `meetingplz-db`**: `users`, `google_accounts`, `sessions`, `push_subs`, `events_cache`, `fired`, `snoozes` (`migrations/`). `google_accounts` holds every linked Google account (token, email) per user; `users.google_sub`/`email` are the primary account.
+- **D1 `meetingplz-db`**: `users`, `google_accounts`, `sessions`, `push_subs`, `events_cache`, `fired`, `snoozes`, `link_codes` (`migrations/`). `google_accounts` holds every linked Google account (token, email) per user; `users.google_sub`/`email` are the primary account.
 - **Worker `meetingplz-cron`** (cron `* * * * *`): Web Push reminders, VAPID + aes128gcm on Web Crypto only.
 
 ```
@@ -63,7 +63,8 @@ All JSON. Auth is `Authorization: Bearer <session token>` or the `mp_session` co
 | --- | --- |
 | `GET /api/auth/google/start?client=web\|ext\|desktop\|ios&return=<url>` | `return` must be `https://*.chromiumapp.org/*`, `http://127.0.0.1:<port>/*` or `meetingplz://auth`. Web gets a cookie and goes to `/app`; others get `return#token=<token>` (or `return#error=<code>`). |
 | `GET /api/me` | `{ email, name, picture, settings, accounts: [{ id, email, picture, primary, error }] }` (`error` is `'reauth'` when that account needs to be linked again) |
-| `POST /api/accounts/link` | body `{ client, return }` (same rules as sign-in) -> `{ url }`, a Google URL (account chooser) whose signed state links the chosen account to the caller. Callback redirects to `/app?linked=1` (web) or `return#linked=1`; errors as `#error=<code>` (`account_in_use`, `calendar_access_needed`, `link_failed`). A Google account that is already a MeetingPlz user with no other accounts is folded into the caller; otherwise `account_in_use`. |
+| `POST /api/accounts/link` | body `{ client, return }` (same rules as sign-in) -> `{ url }`, a Google URL (account chooser) whose signed state links the chosen account to the caller. Web: the callback attaches the account (needs the cookie session of the same user) and redirects to `/app?linked=1`. Other clients: the callback attaches nothing; it parks the Google tokens under a one-time code (hashed, 5 min) and redirects to `return#link_code=<code>`. Errors as `#error=<code>` (`calendar_access_needed`, `no_refresh_token`, `link_failed`). |
+| `POST /api/accounts/link/complete` | `{ code }` with the client's Bearer token; attaches the parked account only if the caller is the user the link was started for (`403 link_failed` otherwise), deletes the code (replay `400 bad_code`, late `400 code_expired`). A Google account that is already a MeetingPlz user with no other accounts is folded into the caller; otherwise `409 account_in_use`. |
 | `DELETE /api/accounts/:id` | revokes that account's token and removes it; `400 last_account` for the only one |
 | `PUT /api/settings` | validated partial, returns full settings |
 | `POST /api/logout` | |

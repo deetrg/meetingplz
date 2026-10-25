@@ -81,7 +81,7 @@
     var b = $('addacct'); b.disabled = true; acctError('');
     var r = await send({ type: 'addAccount' });
     b.disabled = false;
-    if (r.error) acctError(r.error === 'account_in_use' ? 'That Google account is already used by another MeetingPlz account.' : r.error === 'calendar_access_needed' ? 'Tick the calendar box on Google\u2019s screen.' : 'Could not add that account. Try again.');
+    if (r.error) acctError(/account_in_use|409/.test(r.error) ? 'That Google account is already used by another MeetingPlz account.' : r.error === 'calendar_access_needed' ? 'Tick the calendar box on Google\u2019s screen.' : 'Could not add that account. Try again.');
     load(false);
   };
   $('accounts').onclick = async function (e) {

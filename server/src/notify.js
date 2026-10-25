@@ -71,6 +71,7 @@ export async function runCron(env, now = Date.now(), send) {
     const cutoff = now - 2 * 24 * 3600 * 1000;
     await env.DB.prepare('DELETE FROM fired WHERE fired_at < ?').bind(cutoff).run();
     await env.DB.prepare('DELETE FROM snoozes WHERE until < ?').bind(cutoff).run();
+    await env.DB.prepare('DELETE FROM link_codes WHERE expires_at < ?').bind(now).run();
     await env.DB.prepare('DELETE FROM sessions WHERE last_seen < ?').bind(now - 90 * 24 * 3600 * 1000).run();
   }
   return report;

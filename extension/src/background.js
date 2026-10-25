@@ -280,7 +280,10 @@
       var finalUrl = await chrome.identity.launchWebAuthFlow({ url: l.url, interactive: true });
       var err = finalUrl && /[#?&]error=([^&#]+)/.exec(finalUrl);
       if (err) throw new Error(decodeURIComponent(err[1]));
-      if (!finalUrl || !/[#?&]linked=1/.test(finalUrl)) throw new Error('not linked');
+      var cm = finalUrl && /[#?&]link_code=([^&#]+)/.exec(finalUrl);
+      if (!cm) throw new Error('not linked');
+      // the callback only parks the account under a one-time code; redeem it with our own session
+      await api('/api/accounts/link/complete', { method: 'POST', body: { code: decodeURIComponent(cm[1]) } });
       var r = await refresh();
       await updateBadge(r.events, settingsOf(r.me), now());
       return { ok: true, me: r.me };
