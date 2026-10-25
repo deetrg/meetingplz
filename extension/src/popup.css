@@ -35,3 +35,12 @@ select { font: inherit; font-size: 14px; color: var(--ink); background: var(--pa
 .seg button.on { background: var(--ink); color: var(--paper); font-weight: 700; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 13px; }
 footer a { color: var(--muted); }
+
+.next .cal { color: var(--muted); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accounts { margin: 6px 0 4px; border-top: 1.5px solid var(--soft); padding-top: 10px; }
+.accounts .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.acct { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 14px; }
+.acct .em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct .em small { color: var(--muted); }
+.acct .link { flex: none; font-size: 13px; }
+.accounts .btn { margin-top: 8px; }

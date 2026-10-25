@@ -34,3 +34,9 @@ dialog .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex
 .bar .btn.text,.who .btn{white-space:nowrap}
 .row{flex-wrap:wrap}
 @media (max-width:480px){.who span{display:none}.bar{padding-top:max(18px,env(safe-area-inset-top))}}
+
+.mtg .b span.cal{display:block;font-size:12px}
+.acct{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1.5px solid var(--soft)}
+.acct .em{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:15px}
+.acct .tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border:1.5px solid var(--soft);border-radius:999px;padding:2px 8px;flex:none}
+#add-account{margin-top:12px}

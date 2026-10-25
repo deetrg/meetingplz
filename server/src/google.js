@@ -3,14 +3,14 @@ export const CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
 export class GoogleAuthError extends Error {}
 
-export function authUrl(env, { redirectUri, state }) {
+export function authUrl(env, { redirectUri, state, select = false }) {
   const p = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: SCOPES,
     access_type: 'offline',
-    prompt: 'consent',
+    prompt: select ? 'consent select_account' : 'consent',
     include_granted_scopes: 'true',
     state,
   });

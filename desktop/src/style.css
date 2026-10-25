@@ -28,3 +28,9 @@ select{appearance:none;border:2px solid var(--ink);background:var(--paper);color
 .who p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .empty{color:var(--muted);padding:6px 0 2px}
 .stack{display:grid;gap:10px;margin-top:22px}
+
+.meeting span.cal{display:block;font-size:12px}
+.acct{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1.5px solid var(--soft)}
+.acct .em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;min-width:0}
+.acct .tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:6px}
+.errnote{font-size:13px;color:var(--ink)}

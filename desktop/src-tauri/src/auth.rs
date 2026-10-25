@@ -94,8 +94,21 @@ p{color:#6b6b6b;margin:0}
 <script>
 (function(){
   var h=document.getElementById('h'),p=document.getElementById('p');
-  var t=new URLSearchParams(location.hash.slice(1)).get('token');
+  var q=new URLSearchParams(location.hash.slice(1));
+  var t=q.get('token'),linked=q.get('linked'),er=q.get('error');
   history.replaceState(null,'','/cb');
+  if(linked){
+    fetch('/linked',{method:'POST',body:'1'}).then(function(r){
+      if(!r.ok)throw 0;
+      h.textContent='Account added.';p.textContent='You can close this tab and go back to MeetingPlz.';
+    }).catch(function(){h.textContent='Could not add the account.';p.textContent='Go back to MeetingPlz and try again.';});
+    return;
+  }
+  if(er){
+    h.textContent=er==='account_in_use'?'That account is already in use.':'Sign in did not finish.';
+    p.textContent=er==='account_in_use'?'It belongs to another MeetingPlz account.':'Go back to MeetingPlz and try again.';
+    return;
+  }
   if(!t){h.textContent='Sign in did not finish.';p.textContent='Go back to MeetingPlz and try again.';return;}
   fetch('/token',{method:'POST',body:t}).then(function(r){
     if(!r.ok)throw 0;
@@ -108,7 +121,9 @@ fn valid_token(t: &str) -> bool {
     !t.is_empty() && t.len() <= 2048 && t.chars().all(|c| c.is_ascii_alphanumeric() || "-_.~+/=".contains(c))
 }
 
-pub fn start_sign_in(app: &AppHandle) -> Result<(), String> {
+/// Starts the loopback listener that catches the browser redirect (`#token=...` or `#linked=1`).
+/// Returns the port. A newer listener replaces an older one.
+pub fn spawn_listener(app: &AppHandle) -> Result<u16, String> {
     let server = tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
     let port = server
         .server_addr()
@@ -116,10 +131,6 @@ pub fn start_sign_in(app: &AppHandle) -> Result<(), String> {
         .map(|a| a.port())
         .ok_or("no port")?;
     let gen = app.state::<AppState>().auth_gen.fetch_add(1, Ordering::SeqCst) + 1;
-    let base = std::env::var("MEETINGPLZ_API").unwrap_or_else(|_| crate::API_BASE.to_string());
-    let url = format!(
-        "{base}/api/auth/google/start?client=desktop&return=http%3A%2F%2F127.0.0.1%3A{port}%2Fcb"
-    );
 
     let app2 = app.clone();
     std::thread::spawn(move || {
@@ -150,11 +161,31 @@ pub fn start_sign_in(app: &AppHandle) -> Result<(), String> {
                     return;
                 }
                 let _ = req.respond(tiny_http::Response::from_string("bad token").with_status_code(400));
+            } else if method == "POST" && path == "/linked" {
+                let _ = req.respond(tiny_http::Response::from_string("ok"));
+                let _ = app2.emit("auth-changed", ());
+                return;
             } else {
                 let _ = req.respond(tiny_http::Response::from_string("not found").with_status_code(404));
             }
         }
     });
+    Ok(port)
+}
 
+pub fn start_sign_in(app: &AppHandle) -> Result<(), String> {
+    let port = spawn_listener(app)?;
+    let base = std::env::var("MEETINGPLZ_API").unwrap_or_else(|_| crate::API_BASE.to_string());
+    let url = format!(
+        "{base}/api/auth/google/start?client=desktop&return=http%3A%2F%2F127.0.0.1%3A{port}%2Fcb"
+    );
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Opens a Google sign-in URL (from /api/accounts/link) in the system browser.
+pub fn open_google_url(app: &AppHandle, url: &str) -> Result<(), String> {
+    if !url.starts_with("https://accounts.google.com/") {
+        return Err("unexpected url".into());
+    }
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }

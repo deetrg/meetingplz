@@ -19,7 +19,10 @@
   var ERRORS = {
     calendar_access_needed: 'MeetingPlz needs to see your calendar to remind you. Please try again and tick the calendar box.',
     access_denied: 'Sign-in was cancelled.',
-    google_exchange_failed: 'Google sign-in did not finish. Please try again.'
+    google_exchange_failed: 'Google sign-in did not finish. Please try again.',
+    account_in_use: 'That Google account already belongs to another MeetingPlz account that has other accounts linked.',
+    link_failed: 'Could not add that account. Please try again.',
+    no_refresh_token: 'Google did not give MeetingPlz long-term access. Please try again and accept everything.'
   };
 
   /* ---------- utils ---------- */
@@ -216,8 +219,19 @@
     return '<div class="list">' + list.map(function (e) {
       var join = e.link ? '<a class="btn sm" href="' + esc(e.link) + '" target="_blank" rel="noopener">Join</a>' : '';
       return '<div class="mtg"><div class="t">' + esc(timeFmt.format(e.start)) + '<small>' + esc(dayLabel(e.start)) + '</small></div>' +
-        '<div class="b"><b>' + esc(e.title) + '</b><span>' + esc(e.attendees || e.calendar) + '</span></div>' + join + '</div>';
+        '<div class="b"><b>' + esc(e.title) + '</b>' + (e.attendees ? '<span>' + esc(e.attendees) + '</span>' : '') + (e.calendar ? '<span class="cal">' + esc(e.calendar) + '</span>' : '') + '</div>' + join + '</div>';
     }).join('') + '</div>';
+  }
+
+  function accountRows() {
+    var list = (state.me && state.me.accounts) || [];
+    var rows = list.map(function (a) {
+      var tag = a.error ? '<span class="tag">Sign in again</span>' : a.primary ? '<span class="tag">Main</span>' : '';
+      var rm = list.length > 1 ? '<button class="btn text sm" type="button" data-remove="' + esc(a.id) + '" data-email="' + esc(a.email) + '">Remove</button>' : '';
+      return '<div class="acct"><span class="em">' + esc(a.email) + '</span>' + tag + rm + '</div>';
+    }).join('');
+    return '<div class="card">' + rows + '<button class="btn sm" id="add-account" type="button">+ Add another Google account</button>' +
+      '<p class="note">Meetings from every account get a reminder.</p></div>';
   }
 
   function renderApp() {
@@ -229,6 +243,7 @@
       '<div class="bar"><a class="wordmark" href="/app">MeetingPlz.</a><div class="who">' + avatar + '<span>' + esc(me.email) + '</span><button class="btn text sm" id="logout" type="button">Sign out</button></div></div>' +
       '<section><button class="btn primary block" id="test-it" type="button" style="min-height:64px;font-size:18px">Test it</button></section>' +
       '<section><h2>Next up</h2><div id="meetings">' + meetingRows() + '</div></section>' +
+      '<section><h2>Accounts</h2><div id="accounts">' + accountRows() + '</div></section>' +
       '<section><h2>Notifications</h2><div class="card" id="notif">' + notifBlock() + '</div></section>' +
       '<section><h2>Settings</h2><div class="card stack">' +
       '<div class="field"><label>Remind me</label>' + pills('leadSeconds', LEADS, s.leadSeconds) + '</div>' +
@@ -244,6 +259,27 @@
   function rerenderParts() {
     var m = document.getElementById('meetings'); if (m) m.innerHTML = meetingRows();
     var n = document.getElementById('notif'); if (n) n.innerHTML = notifBlock();
+    var a = document.getElementById('accounts'); if (a) a.innerHTML = accountRows();
+  }
+
+  function addAccount() {
+    var b = document.getElementById('add-account'); if (b) b.disabled = true;
+    api('/api/accounts/link', { method: 'POST', body: { client: 'web' } }).then(function (r) {
+      if (r.ok && r.data.url) { location.href = r.data.url; return; }
+      if (b) b.disabled = false;
+      toast('Could not start that. Please try again.');
+    });
+  }
+
+  function removeAccount(id, email) {
+    if (!window.confirm('Remove ' + email + '? Its meetings will no longer get reminders.')) return;
+    api('/api/accounts/' + encodeURIComponent(id), { method: 'DELETE' }).then(function (r) {
+      if (!r.ok) { toast(r.data && r.data.error === 'last_account' ? 'You need at least one account.' : 'Could not remove that account.'); return; }
+      return api('/api/me').then(function (m) {
+        if (m.ok) state.me = m.data;
+        return loadUpcoming();
+      }).then(function () { rerenderParts(); });
+    });
   }
 
   /* ---------- events ---------- */
@@ -261,7 +297,9 @@
       });
       return;
     }
+    if (t.dataset && t.dataset.remove) { removeAccount(t.dataset.remove, t.dataset.email); return; }
     switch (t.id) {
+      case 'add-account': addAccount(); break;
       case 'test-it': testIt(); break;
       case 'push-on': enablePush().then(rerenderParts); break;
       case 'push-off': disablePush().then(rerenderParts); break;
@@ -305,11 +343,14 @@
   /* ---------- boot ---------- */
   var params = new URLSearchParams(location.search);
   var bootError = params.get('error');
-  if (bootError) history.replaceState(null, '', '/app');
+  var justLinked = params.get('linked') === '1';
+  if (bootError || justLinked) history.replaceState(null, '', '/app');
 
   root.innerHTML = '<div class="spin">…</div>';
   api('/api/me').then(function (r) {
     if (!r.ok) { renderSignedOut(bootError); return; }
+    if (bootError) toast(ERRORS[bootError] || 'Something went wrong. Please try again.');
+    if (justLinked) toast('Account added.');
     state.me = r.data;
     state.settings = Core.normalizeSettings(r.data.settings);
     return Promise.all([loadUpcoming(), refreshPushState()]).then(function () {

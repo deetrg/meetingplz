@@ -280,3 +280,34 @@ test('manifest is valid MV3 with a fixed key and required permissions', () => {
   const computed = h.replace(/[0-9a-f]/g, (c) => String.fromCharCode('a'.charCodeAt(0) + parseInt(c, 16)));
   assert.equal(computed, id);
 });
+
+test('addAccount asks the server for a link URL, runs the auth flow with the chromiumapp return, refreshes /api/me', async () => {
+  const m = mock({
+    authResult: 'https://abc.chromiumapp.org/cb#linked=1',
+    responses: Object.assign(upcoming([]), { '/api/accounts/link': { url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' } })
+  });
+  const r = await m.bg.addAccount();
+  assert.equal(r.ok, true);
+  const link = m.calls.fetch.find((c) => c.url.endsWith('/api/accounts/link'));
+  assert.equal(link.init.method, 'POST');
+  assert.deepEqual(JSON.parse(link.init.body), { client: 'ext', return: 'https://abc.chromiumapp.org/cb' });
+  assert.equal(m.calls.authUrl, 'https://accounts.google.com/o/oauth2/v2/auth?x=1');
+  assert.ok(m.calls.fetch.some((c) => c.url.endsWith('/api/me')));
+});
+
+test('addAccount surfaces #error= from the redirect and fails without #linked=1', async () => {
+  const resp = Object.assign(upcoming([]), { '/api/accounts/link': { url: 'https://accounts.google.com/x' } });
+  const a = mock({ authResult: 'https://abc.chromiumapp.org/cb#error=account_in_use', responses: resp });
+  await assert.rejects(() => a.bg.addAccount(), /account_in_use/);
+  const b = mock({ authResult: 'https://abc.chromiumapp.org/cb', responses: resp });
+  await assert.rejects(() => b.bg.addAccount(), /not linked/);
+});
+
+test('removeAccount DELETEs the account and refreshes', async () => {
+  const m = mock({ responses: Object.assign(upcoming([]), { '/api/accounts/abc123': { ok: true } }) });
+  const r = await m.bg.removeAccount('abc123');
+  assert.equal(r.ok, true);
+  const del = m.calls.fetch.find((c) => c.url.endsWith('/api/accounts/abc123'));
+  assert.equal(del.init.method, 'DELETE');
+  assert.equal(del.init.headers.Authorization, 'Bearer tok');
+});

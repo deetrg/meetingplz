@@ -70,6 +70,16 @@ fn sign_in(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn link_listen(app: AppHandle) -> Result<u16, String> {
+    auth::spawn_listener(&app)
+}
+
+#[tauri::command]
+fn open_url(app: AppHandle, url: String) -> Result<(), String> {
+    auth::open_google_url(&app, &url)
+}
+
+#[tauri::command]
 fn sign_out(app: AppHandle) {
     auth::clear_token(&app);
     let _ = app.emit("auth-changed", ());
@@ -125,7 +135,7 @@ pub fn open_settings_window(app: &AppHandle) -> tauri::Result<()> {
     let app2 = app.clone();
     let w = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("MeetingPlz")
-        .inner_size(400.0, 640.0)
+        .inner_size(400.0, 720.0)
         .min_inner_size(360.0, 480.0)
         .center()
         .build()?;
@@ -230,6 +240,8 @@ fn main() {
             get_token,
             log_line,
             sign_in,
+            link_listen,
+            open_url,
             sign_out,
             set_next,
             publish_state,

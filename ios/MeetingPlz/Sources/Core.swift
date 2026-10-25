@@ -34,11 +34,20 @@ struct Settings: Codable, Equatable {
     }
 }
 
+struct GoogleAccount: Codable, Equatable, Identifiable {
+    var id: String
+    var email: String
+    var picture: String?
+    var primary: Bool
+    var error: String?
+}
+
 struct Me: Codable, Equatable {
     var email: String
     var name: String?
     var picture: String?
     var settings: Settings?
+    var accounts: [GoogleAccount]? = nil
 }
 
 /// Decodes either an ISO-8601 string or a number (ms or seconds since epoch).

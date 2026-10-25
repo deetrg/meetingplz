@@ -22,6 +22,7 @@ final class AppModel: ObservableObject {
     @Published var loaded = false
     @Published var errorText: String?
     @Published var signingIn = false
+    @Published var linking = false
     @Published var reminder: ReminderState?
     @Published var notifStatus: UNAuthorizationStatus = .notDetermined
     @Published var alarmKitOn: Bool = AlarmScheduler.enabled
@@ -48,7 +49,9 @@ final class AppModel: ObservableObject {
         func ev(_ k: String, _ t: String, _ m: Double, _ len: Double, _ link: String?, _ att: String) -> MPEvent {
             MPEvent(key: k, id: k, title: t, start: now.addingTimeInterval(m * 60), end: now.addingTimeInterval((m + len) * 60), link: link, calendar: "dai@example.com", attendees: att)
         }
-        me = Me(email: "dai@example.com", name: "Dai", picture: nil, settings: nil)
+        me = Me(email: "dai@example.com", name: "Dai", picture: nil, settings: nil,
+                accounts: [GoogleAccount(id: "1", email: "dai@example.com", picture: nil, primary: true, error: nil),
+                           GoogleAccount(id: "2", email: "dai@work.example", picture: nil, primary: false, error: nil)])
         events = [ev("a", "Quick sync", 32, 30, "https://meet.google.com/abc-defg-hij", "with Miles and 3 others"),
                   ev("b", "Design review", 95, 45, "https://zoom.us/j/123456", "with Lan and 1 other"),
                   ev("c", "Weekly 1:1", 240, 30, "https://teams.microsoft.com/l/meetup-join/x", "with Phi")]
@@ -74,6 +77,31 @@ final class AppModel: ObservableObject {
             // user cancelled
         } catch {
             errorText = error.localizedDescription
+        }
+    }
+
+    func addAccount() async {
+        guard isSignedIn, !linking else { return }
+        linking = true; errorText = nil
+        defer { linking = false }
+        do {
+            let url = try await api.linkURL()
+            try await WebAuth.shared.link(url: url)
+            await refresh()
+        } catch let e as NSError where e.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && e.code == 1 {
+            // user cancelled
+        } catch {
+            errorText = error.localizedDescription
+        }
+    }
+
+    func removeAccount(_ id: String) async {
+        errorText = nil
+        do {
+            try await api.removeAccount(id)
+            await refresh()
+        } catch {
+            errorText = "Couldn't remove that account. Please try again."
         }
     }
 

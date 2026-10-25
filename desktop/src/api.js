@@ -26,6 +26,16 @@
     putSettings: function (partial) {
       return call('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(partial) });
     },
+    linkAccount: async function () {
+      // Rust opens a loopback listener and returns its port; the server builds the Google URL for that return address.
+      var port = await invoke('link_listen');
+      var r = await call('/api/accounts/link', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client: 'desktop', 'return': 'http://127.0.0.1:' + port + '/cb' })
+      });
+      await invoke('open_url', { url: r.url });
+    },
+    removeAccount: function (id) { return call('/api/accounts/' + encodeURIComponent(id), { method: 'DELETE' }); },
     logout: function () { return call('/api/logout', { method: 'POST' }).catch(function () {}); }
   };
 })();

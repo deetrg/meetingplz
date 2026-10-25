@@ -29,9 +29,19 @@
     el.innerHTML = '<div class="eyebrow">Next up</div><div class="title">' + esc(ev.title) + '</div>' +
       '<div class="meta">' + fmtTime(st) + ' to ' + fmtTime(en) + ' \u00b7 ' + inLabel(s.minutes, started) + '</div>' +
       (ev.attendees ? '<div class="meta">' + esc(ev.attendees) + '</div>' : '') +
+      (ev.calendar ? '<div class="cal">' + esc(ev.calendar) + '</div>' : '') +
       (label ? '<button class="btn outline join" id="joinnow">' + label + '</button>' : '');
     var j = $('joinnow');
     if (j) j.onclick = function () { chrome.tabs.create({ url: ev.link }); window.close(); };
+  }
+
+  function renderAccounts(me) {
+    var list = (me && me.accounts) || [];
+    $('accounts').innerHTML = list.map(function (a) {
+      var tag = a.error ? ' <small>(sign in again)</small>' : a.primary ? ' <small>(main)</small>' : '';
+      var rm = list.length > 1 ? '<button class="link" data-rm="' + esc(a.id) + '">Remove</button>' : '';
+      return '<div class="acct"><span class="em">' + esc(a.email) + tag + '</span>' + rm + '</div>';
+    }).join('');
   }
 
   function render(s) {
@@ -41,6 +51,7 @@
     if (!s.signedIn) return;
     $('who').textContent = (s.me && s.me.email) || '';
     renderNext(s);
+    renderAccounts(s.me);
     var set = s.settings || {};
     $('lead').value = String(set.leadSeconds || 120);
     $('alarm').value = set.alarm || 'jingle';
@@ -63,6 +74,22 @@
     var r = await send({ type: 'signIn' });
     b.disabled = false;
     if (r.error) { $('err').textContent = 'Could not sign in. Try again.'; $('err').hidden = false; return; }
+    load(false);
+  };
+  function acctError(msg) { $('acct-err').textContent = msg || ''; $('acct-err').hidden = !msg; }
+  $('addacct').onclick = async function () {
+    var b = $('addacct'); b.disabled = true; acctError('');
+    var r = await send({ type: 'addAccount' });
+    b.disabled = false;
+    if (r.error) acctError(r.error === 'account_in_use' ? 'That Google account is already used by another MeetingPlz account.' : r.error === 'calendar_access_needed' ? 'Tick the calendar box on Google\u2019s screen.' : 'Could not add that account. Try again.');
+    load(false);
+  };
+  $('accounts').onclick = async function (e) {
+    var id = e.target.dataset && e.target.dataset.rm;
+    if (!id) return;
+    e.target.disabled = true; acctError('');
+    var r = await send({ type: 'removeAccount', id: id });
+    if (r.error) acctError('Could not remove that account.');
     load(false);
   };
   $('signout').onclick = async function () { await send({ type: 'signOut' }); load(false); };

@@ -63,7 +63,7 @@ export function mapEvents(rawByCal) {
         declined,
       };
       const prev = byKey.get(key);
-      // same event on several calendars: prefer the copy where I am an attendee
+      // same event on several calendars/accounts: prefer the copy where I am an attendee, else the first one seen
       if (!prev || (me && !prev._me)) { evt._me = !!me; byKey.set(key, evt); }
     }
   }
@@ -72,22 +72,59 @@ export function mapEvents(rawByCal) {
     .sort((a, b) => a.start - b.start);
 }
 
-// Cached (D1) upcoming events for a user row. Throws GoogleAuthError when re-auth is needed.
+export async function listAccounts(env, user) {
+  const { results } = await env.DB.prepare('SELECT * FROM google_accounts WHERE user_id = ? ORDER BY added_at, id').bind(user.id).all();
+  const rows = results || [];
+  // primary (the account the user signed up with) goes first so its email wins ties
+  rows.sort((a, b) => (b.google_sub === user.google_sub) - (a.google_sub === user.google_sub));
+  return rows;
+}
+
+async function accountEvents(env, acct, now) {
+  const refresh = await decryptToken(acct.refresh_token_enc, env.TOKEN_KEY);
+  const at = await refreshAccessToken(env, refresh);
+  const raw = await fetchRawEvents(at, now);
+  // label every calendar of this account with the account's email
+  return raw.map((r) => ({ calendarId: acct.email || r.calendarId, items: r.items }));
+}
+
+// Cached (D1) merged upcoming events for a user (all linked Google accounts).
+// Throws GoogleAuthError only when no account can be read because of auth; a single bad account is
+// marked (google_accounts.last_error = 'reauth') and skipped.
 export async function loadUpcoming(env, user, { maxAgeMs = 90000, now = Date.now() } = {}) {
   const row = await env.DB.prepare('SELECT fetched_at, json FROM events_cache WHERE user_id = ?').bind(user.id).first();
   if (row && now - row.fetched_at < maxAgeMs) return JSON.parse(row.json);
-  if (!user.refresh_token_enc) throw new GoogleAuthError('no_refresh_token');
-  try {
-    const refresh = await decryptToken(user.refresh_token_enc, env.TOKEN_KEY);
-    const at = await refreshAccessToken(env, refresh);
-    const events = mapEvents(await fetchRawEvents(at, now));
+  const accounts = (await listAccounts(env, user)).filter((a) => a.refresh_token_enc);
+  if (!accounts.length) throw new GoogleAuthError('no_refresh_token');
+  const live = accounts.filter((a) => a.last_error !== 'reauth');
+  const settled = await Promise.allSettled(live.map((a) => accountEvents(env, a, now)));
+  const rawAll = [];
+  let transient = 0;
+  for (let i = 0; i < live.length; i++) {
+    const a = live[i];
+    const r = settled[i];
+    if (r.status === 'fulfilled') {
+      rawAll.push(...r.value);
+      if (a.last_error) await env.DB.prepare('UPDATE google_accounts SET last_error = NULL WHERE id = ?').bind(a.id).run();
+    } else if (r.reason instanceof GoogleAuthError) {
+      await env.DB.prepare("UPDATE google_accounts SET last_error = 'reauth' WHERE id = ?").bind(a.id).run();
+    } else {
+      transient++;
+    }
+  }
+  const okCount = settled.filter((r) => r.status === 'fulfilled').length;
+  if (!okCount) {
+    if (transient) {
+      if (row) return JSON.parse(row.json); // serve stale on transient errors
+      throw new Error('upstream');
+    }
+    throw new GoogleAuthError('all_accounts_need_reauth');
+  }
+  const events = mapEvents(rawAll);
+  if (!transient) {
     await env.DB.prepare(
       'INSERT INTO events_cache (user_id, fetched_at, json) VALUES (?1, ?2, ?3) ON CONFLICT(user_id) DO UPDATE SET fetched_at = ?2, json = ?3',
     ).bind(user.id, now, JSON.stringify(events)).run();
-    return events;
-  } catch (e) {
-    if (e instanceof GoogleAuthError) throw e;
-    if (row) return JSON.parse(row.json); // serve stale on transient errors
-    throw e;
   }
+  return events;
 }

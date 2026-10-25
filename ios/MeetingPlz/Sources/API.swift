@@ -64,6 +64,17 @@ struct APIClient {
         let body = try JSONEncoder().encode(s)
         return try await request("PUT", "/api/settings", body: body, as: Settings.self)
     }
+    func linkURL() async throws -> URL {
+        struct Link: Decodable { var url: String }
+        let body = try JSONSerialization.data(withJSONObject: ["client": "ios", "return": "meetingplz://auth"])
+        let l = try await request("POST", "/api/accounts/link", body: body, as: Link.self)
+        guard let u = URL(string: l.url) else { throw APIError(status: 0, message: "Could not start adding an account.") }
+        return u
+    }
+    func removeAccount(_ id: String) async throws {
+        let safe = id.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? id
+        try await raw("DELETE", "/api/accounts/\(safe)")
+    }
     func logout() async { _ = try? await raw("POST", "/api/logout") }
     func deleteAccount() async throws { try await raw("DELETE", "/api/me") }
 }
@@ -76,16 +87,7 @@ final class WebAuth: NSObject, ASWebAuthenticationPresentationContextProviding {
     func start() async throws -> String {
         let ret = "meetingplz://auth".addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
         let url = URL(string: "\(Config.base)/api/auth/google/start?client=ios&return=\(ret)")!
-        let cb: URL = try await withCheckedThrowingContinuation { cont in
-            let s = ASWebAuthenticationSession(url: url, callbackURLScheme: "meetingplz") { url, err in
-                if let url { cont.resume(returning: url) } else { cont.resume(throwing: err ?? APIError(status: 0, message: "Sign-in cancelled.")) }
-            }
-            s.presentationContextProvider = self
-            s.prefersEphemeralWebBrowserSession = false
-            self.session = s
-            if !s.start() { cont.resume(throwing: APIError(status: 0, message: "Could not open sign-in.")) }
-        }
-        session = nil
+        let cb = try await authenticate(url)
         let comps = URLComponents(url: cb, resolvingAgainstBaseURL: false)
         for raw in [comps?.fragment, comps?.query] {
             guard let raw else { continue }
@@ -104,6 +106,45 @@ final class WebAuth: NSObject, ASWebAuthenticationPresentationContextProviding {
             }
         }
         throw APIError(status: 0, message: "Sign-in did not return a session.")
+    }
+
+    /// Opens `url` in an ASWebAuthenticationSession and returns the meetingplz://auth callback URL.
+    private func authenticate(_ url: URL) async throws -> URL {
+        let cb: URL = try await withCheckedThrowingContinuation { cont in
+            let s = ASWebAuthenticationSession(url: url, callbackURLScheme: "meetingplz") { url, err in
+                if let url { cont.resume(returning: url) } else { cont.resume(throwing: err ?? APIError(status: 0, message: "Sign-in cancelled.")) }
+            }
+            s.presentationContextProvider = self
+            s.prefersEphemeralWebBrowserSession = false
+            self.session = s
+            if !s.start() { cont.resume(throwing: APIError(status: 0, message: "Could not open sign-in.")) }
+        }
+        session = nil
+        return cb
+    }
+
+    /// Adds another Google account: `url` comes from /api/accounts/link. Returns when Google redirected back with #linked=1.
+    func link(url: URL) async throws {
+        let cb = try await authenticate(url)
+        let comps = URLComponents(url: cb, resolvingAgainstBaseURL: false)
+        for raw in [comps?.fragment, comps?.query] {
+            guard let raw else { continue }
+            for pair in raw.split(separator: "&") {
+                let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                if kv.count == 2, kv[0] == "linked", kv[1] == "1" { return }
+                if kv.count == 2, kv[0] == "error" {
+                    let msg: String
+                    switch kv[1] {
+                    case "account_in_use": msg = "That Google account already belongs to another MeetingPlz account."
+                    case "calendar_access_needed": msg = "MeetingPlz needs permission to read that calendar. Please try again and tick the calendar box."
+                    case "access_denied": msg = "Adding the account was cancelled."
+                    default: msg = "Could not add that account. Please try again."
+                    }
+                    throw APIError(status: 0, message: msg)
+                }
+            }
+        }
+        throw APIError(status: 0, message: "Could not add that account. Please try again.")
     }
 
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {

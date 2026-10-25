@@ -273,6 +273,26 @@
       return { signedIn: true, me: r.me };
     }
 
+    // Link another Google account to the signed-in user (Google account chooser in the auth window).
+    async function addAccount() {
+      var redirect = chrome.identity.getRedirectURL('cb');
+      var l = await api('/api/accounts/link', { method: 'POST', body: { client: 'ext', 'return': redirect } });
+      var finalUrl = await chrome.identity.launchWebAuthFlow({ url: l.url, interactive: true });
+      var err = finalUrl && /[#?&]error=([^&#]+)/.exec(finalUrl);
+      if (err) throw new Error(decodeURIComponent(err[1]));
+      if (!finalUrl || !/[#?&]linked=1/.test(finalUrl)) throw new Error('not linked');
+      var r = await refresh();
+      await updateBadge(r.events, settingsOf(r.me), now());
+      return { ok: true, me: r.me };
+    }
+
+    async function removeAccount(id) {
+      await api('/api/accounts/' + encodeURIComponent(id), { method: 'DELETE' });
+      var r = await refresh();
+      await updateBadge(r.events, settingsOf(r.me), now());
+      return { ok: true, me: r.me };
+    }
+
     async function signOut() {
       try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
       await signOutLocal();
@@ -334,6 +354,8 @@
         case 'getState': return getState(!!msg.refresh);
         case 'signIn': return signIn();
         case 'signOut': return signOut();
+        case 'addAccount': return addAccount();
+        case 'removeAccount': return removeAccount(msg.id);
         case 'test': return testReminder(msg.delayMs);
         case 'saveSettings': return saveSettings(msg.patch || {});
         case 'getCurrent': return get(['current']).then(function (s) { return s.current || null; });
@@ -375,7 +397,7 @@
 
     return {
       tick: tick, register: register, ensureAlarm: ensureAlarm, onMessage: onMessage, onAlarm: onAlarm,
-      showReminder: showReminder, getState: getState, signIn: signIn, signOut: signOut, saveSettings: saveSettings,
+      showReminder: showReminder, getState: getState, signIn: signIn, signOut: signOut, addAccount: addAccount, removeAccount: removeAccount, saveSettings: saveSettings,
       testReminder: testReminder, onNotifButton: onNotifButton, scriptable: scriptable
     };
   }

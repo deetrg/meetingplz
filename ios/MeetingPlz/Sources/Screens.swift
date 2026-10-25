@@ -128,6 +128,7 @@ struct EventRow: View {
                     Text("\(Core.timeRange(event)) \u{00B7} \(ms > 0 ? Core.inText(ms) : "now")")
                         .font(.system(size: 14)).foregroundStyle(MP.muted)
                     if let a = event.attendees, !a.isEmpty { Text(a).font(.system(size: 14)).foregroundStyle(MP.muted) }
+                    if let c = event.calendar, !c.isEmpty { Text(c).font(.system(size: 12)).foregroundStyle(MP.muted) }
                 }
                 Spacer(minLength: 0)
                 if let l = event.link, !l.isEmpty {
@@ -168,8 +169,28 @@ struct SettingsView: View {
                         Toggle("Ring like an alarm", isOn: Binding(get: { model.alarmKitOn }, set: { model.setAlarmKit($0) }))
                     }
                 }
+                Section("Accounts") {
+                    let accounts = model.me?.accounts ?? []
+                    if accounts.isEmpty, let me = model.me { Text(me.email).foregroundStyle(MP.muted) }
+                    ForEach(accounts) { a in
+                        HStack {
+                            Text(a.email).foregroundStyle(MP.ink)
+                            Spacer()
+                            if a.error != nil { Text("Sign in again").font(.footnote).foregroundStyle(MP.muted) }
+                            else if a.primary { Text("Main").font(.footnote).foregroundStyle(MP.muted) }
+                        }
+                        .deleteDisabled(accounts.count <= 1)
+                    }
+                    .onDelete { idx in
+                        let ids = idx.map { accounts[$0].id }
+                        for id in ids { Task { await model.removeAccount(id) } }
+                    }
+                    Button { Task { await model.addAccount() } } label: {
+                        if model.linking { ProgressView() } else { Text("Add another Google account") }
+                    }
+                    .disabled(model.linking)
+                }
                 Section("Account") {
-                    if let me = model.me { Text(me.email).foregroundStyle(MP.muted) }
                     Button("Sign out") { Task { await model.signOut(); dismiss() } }
                     Button("Delete account", role: .destructive) { confirmDelete = true }
                     if let err = model.errorText { Text(err).font(.footnote).foregroundStyle(MP.muted) }

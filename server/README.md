@@ -3,7 +3,7 @@
 Cloudflare, free plan. No KV.
 
 - **Pages project `meetingplz`** (https://meetingplz.pages.dev): marketing site (`/`, `/privacy`, `/terms`, `/chrome`, `/iphone`), the web app (`/app`, PWA) and Pages Functions under `/api/*`.
-- **D1 `meetingplz-db`**: `users`, `sessions`, `push_subs`, `events_cache`, `fired`, `snoozes` (`migrations/`).
+- **D1 `meetingplz-db`**: `users`, `google_accounts`, `sessions`, `push_subs`, `events_cache`, `fired`, `snoozes` (`migrations/`). `google_accounts` holds every linked Google account (token, email) per user; `users.google_sub`/`email` are the primary account.
 - **Worker `meetingplz-cron`** (cron `* * * * *`): Web Push reminders, VAPID + aes128gcm on Web Crypto only.
 
 ```
@@ -62,10 +62,12 @@ All JSON. Auth is `Authorization: Bearer <session token>` or the `mp_session` co
 | Endpoint | Notes |
 | --- | --- |
 | `GET /api/auth/google/start?client=web\|ext\|desktop\|ios&return=<url>` | `return` must be `https://*.chromiumapp.org/*`, `http://127.0.0.1:<port>/*` or `meetingplz://auth`. Web gets a cookie and goes to `/app`; others get `return#token=<token>` (or `return#error=<code>`). |
-| `GET /api/me` | `{ email, name, picture, settings }` |
+| `GET /api/me` | `{ email, name, picture, settings, accounts: [{ id, email, picture, primary, error }] }` (`error` is `'reauth'` when that account needs to be linked again) |
+| `POST /api/accounts/link` | body `{ client, return }` (same rules as sign-in) -> `{ url }`, a Google URL (account chooser) whose signed state links the chosen account to the caller. Callback redirects to `/app?linked=1` (web) or `return#linked=1`; errors as `#error=<code>` (`account_in_use`, `calendar_access_needed`, `link_failed`). A Google account that is already a MeetingPlz user with no other accounts is folded into the caller; otherwise `account_in_use`. |
+| `DELETE /api/accounts/:id` | revokes that account's token and removes it; `400 last_account` for the only one |
 | `PUT /api/settings` | validated partial, returns full settings |
 | `POST /api/logout` | |
-| `GET /api/upcoming` | `{ now, events: [{ key, id, title, start, end, link, provider, calendar, attendees, attendeeCount, isMeeting, allDay, declined }] }`. `now`, `start`, `end` are epoch ms. Next 24 h, cached 90 s in D1. `401 {error:"reauth"}` if Google access was revoked. |
+| `GET /api/upcoming` | `{ now, events: [{ key, id, title, start, end, link, provider, calendar, attendees, attendeeCount, isMeeting, allDay, declined }] }`. `now`, `start`, `end` are epoch ms. Merged from every linked account (fetched in parallel; the same meeting in several calendars is listed once, `calendar` = email of the first account). Next 24 h, cached 90 s in D1. A failing account is marked and skipped; `401 reauth` only when no account can be read. `401 {error:"reauth"}` if Google access was revoked. |
 | `GET /api/push/vapid` | `{ publicKey }` |
 | `POST /api/push/subscribe`, `DELETE /api/push/subscribe` | PushSubscription JSON / `{ endpoint }` |
 | `POST /api/test-reminder` | sends a test push to the caller's subscriptions after 5 s |

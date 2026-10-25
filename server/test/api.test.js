@@ -55,8 +55,9 @@ test('sign-in for extension returns token in fragment; me/settings/logout work',
     assert.ok(loc.startsWith('https://abc.chromiumapp.org/cb#token='));
     const token = loc.split('#token=')[1];
 
-    const stored = env.DB.raw.prepare('SELECT * FROM users').get();
+    const stored = env.DB.raw.prepare('SELECT * FROM google_accounts').get();
     assert.equal(stored.email, 'a@b.com');
+    assert.equal(env.DB.raw.prepare('SELECT refresh_token_enc FROM users').get().refresh_token_enc, null);
     assert.ok(stored.refresh_token_enc.startsWith('v1.'));
     assert.ok(!stored.refresh_token_enc.includes('rt-1'));
     assert.equal(env.DB.raw.prepare('SELECT token_hash FROM sessions').get().token_hash.includes(token), false);
@@ -64,6 +65,7 @@ test('sign-in for extension returns token in fragment; me/settings/logout work',
     assert.equal((await handleApi(req('/api/me'), env)).status, 401);
     const me = await (await handleApi(req('/api/me', bearer(token)), env)).json();
     assert.equal(me.email, 'a@b.com');
+    assert.deepEqual(me.accounts, [{ id: stored.id, email: 'a@b.com', picture: 'https://p/x.png', primary: true, error: null }]);
     assert.deepEqual(me.settings, { leadSeconds: 120, style: 'flyby', alarm: 'jingle', meetingsOnly: true, snoozeSeconds: 60 });
 
     const put = await handleApi(req('/api/settings', bearer(token, { method: 'PUT', body: JSON.stringify({ leadSeconds: 300, style: 'takeover', alarm: 'nope', bogus: 1 }) })), env);
@@ -235,7 +237,7 @@ test('DELETE /api/me and /api/account wipe the user, revoke the Google token', a
       env.DB.raw.prepare("INSERT INTO fired VALUES (?, 'k', 1)").run(env.DB.raw.prepare('SELECT id FROM users').get().id);
       const r = await handleApi(req(path, bearer(token, { method: 'DELETE' })), env);
       assert.equal(r.status, 200);
-      for (const t of ['users', 'sessions', 'push_subs', 'events_cache', 'fired', 'snoozes']) {
+      for (const t of ['users', 'sessions', 'push_subs', 'events_cache', 'fired', 'snoozes', 'google_accounts']) {
         assert.equal(env.DB.raw.prepare(`SELECT COUNT(*) n FROM ${t}`).get().n, 0, t);
       }
       const rev = g.calls.find((c) => c.url === 'https://oauth2.googleapis.com/revoke');
