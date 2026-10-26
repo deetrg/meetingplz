@@ -1,0 +1,95 @@
+name: msstore
+
+# Builds MeetingPlz.msix for the Microsoft Store (unsigned: the Store signs it) plus a
+# throwaway-signed smoke copy that is installed and launched on the runner.
+
+on:
+  workflow_dispatch:
+    inputs:
+      identity_name:
+        description: 'Package identity name from Partner Center (blank = secret MSIX_IDENTITY_NAME or placeholder)'
+        required: false
+        default: ''
+      publisher:
+        description: 'Publisher (CN=...) from Partner Center (blank = secret MSIX_PUBLISHER or placeholder)'
+        required: false
+        default: ''
+      publisher_display_name:
+        description: 'Publisher display name (blank = secret MSIX_PUBLISHER_DISPLAY_NAME or placeholder)'
+        required: false
+        default: ''
+  push:
+    paths:
+      - '.github/workflows/msstore.yml'
+      - 'desktop/scripts/msix-*.ps1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msstore-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REQUIRE_SHARED: '1'
+
+jobs:
+  msix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Install JS deps
+        working-directory: desktop
+        shell: bash
+        run: npm ci
+      - name: Generate icons
+        working-directory: desktop
+        shell: bash
+        run: npx tauri icon ../shared/art/icon-1024.png
+      - name: Build release exe
+        working-directory: desktop
+        shell: bash
+        run: npx tauri build --no-bundle
+      - name: Resolve identity
+        shell: pwsh
+        env:
+          IN_NAME: ${{ inputs.identity_name }}
+          IN_PUB: ${{ inputs.publisher }}
+          IN_PUBDN: ${{ inputs.publisher_display_name }}
+          SEC_NAME: ${{ secrets.MSIX_IDENTITY_NAME }}
+          SEC_PUB: ${{ secrets.MSIX_PUBLISHER }}
+          SEC_PUBDN: ${{ secrets.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          function Pick($a, $b, $c) { if ($a) { $a } elseif ($b) { $b } else { $c } }
+          "ID_NAME=$(Pick $env:IN_NAME $env:SEC_NAME 'MeetingPlz')" >> $env:GITHUB_ENV
+          "ID_PUB=$(Pick $env:IN_PUB $env:SEC_PUB 'CN=PLACEHOLDER')" >> $env:GITHUB_ENV
+          "ID_PUBDN=$(Pick $env:IN_PUBDN $env:SEC_PUBDN 'PLACEHOLDER')" >> $env:GITHUB_ENV
+      - name: Build Store MSIX (unsigned)
+        shell: pwsh
+        run: |
+          ./desktop/scripts/msix-build.ps1 -Exe "$PWD\desktop\src-tauri\target\release\meetingplz.exe" -Icon "$PWD\shared\art\icon-1024.png" `
+            -Out "$PWD\MeetingPlz.msix" -Name $env:ID_NAME -Publisher $env:ID_PUB -PublisherDisplayName $env:ID_PUBDN
+      - name: Build smoke MSIX (throwaway identity)
+        shell: pwsh
+        run: |
+          ./desktop/scripts/msix-build.ps1 -Exe "$PWD\desktop\src-tauri\target\release\meetingplz.exe" -Icon "$PWD\shared\art\icon-1024.png" `
+            -Out "$PWD\MeetingPlz-smoke.msix" -Name 'MeetingPlzSmoke' -Publisher 'CN=MeetingPlzSmoke' -PublisherDisplayName 'MeetingPlz Smoke'
+      - name: Smoke test (install, launch in demo mode, screenshot)
+        shell: pwsh
+        run: ./desktop/scripts/msix-smoke.ps1 -Msix "$PWD\MeetingPlz-smoke.msix" -Subject 'CN=MeetingPlzSmoke' -PackageName 'MeetingPlzSmoke' -OutDir "$PWD\smoke"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: win-msix-smoke
+          path: smoke
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeetingPlz-msix
+          path: MeetingPlz.msix
