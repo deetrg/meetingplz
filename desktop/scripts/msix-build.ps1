@@ -95,6 +95,6 @@ $makeappx = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse 
 if (-not $makeappx) { throw 'makeappx.exe not found' }
 Write-Host "makeappx: $($makeappx.FullName)"
 if (Test-Path $Out) { Remove-Item $Out -Force }
-& $makeappx.FullName pack /d $stage /p $Out /nologo /o
+& $makeappx.FullName pack /d $stage /p $Out /v /o
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
 Write-Host "Built $Out ($((Get-Item $Out).Length) bytes) identity=$Name publisher=$Publisher"
