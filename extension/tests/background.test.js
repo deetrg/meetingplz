@@ -271,8 +271,7 @@ test('manifest is valid MV3 with a fixed key and required permissions', () => {
   const mf = JSON.parse(fs.readFileSync(path.join(__dirname, '../src/manifest.json'), 'utf8'));
   assert.equal(mf.manifest_version, 3);
   assert.ok(mf.key && mf.key.length > 200);
-  ['identity', 'alarms', 'storage', 'scripting', 'activeTab', 'tabs', 'notifications'].forEach((p) => assert.ok(mf.permissions.includes(p), p));
-  assert.ok(mf.host_permissions.includes('https://meetingplz.pages.dev/*'));
+  ['identity', 'alarms', 'storage', 'scripting', 'notifications'].forEach((p) => assert.ok(mf.permissions.includes(p), p));
   assert.ok(mf.host_permissions.includes('<all_urls>'));
   const id = fs.readFileSync(path.join(__dirname, '../EXTENSION_ID.txt'), 'utf8').trim();
   const der = Buffer.from(mf.key, 'base64');

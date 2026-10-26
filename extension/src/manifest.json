@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "MeetingPlz",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Two minutes before a meeting, a plane flies by and one big Join button shows up.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzYwG2M1hJEcs6htL5gC2lo9icC6Sfxr3NsLZ3GZb6Rv8/VD/2WyzPgU/+K4rTP+EQWoXQ5KtlyjwVNLlq7dUxTgVs8L0DdYFrl3ngRv98fAnUzT9t1CKXvQPl6511d+LqFoSk8usGDJpjXKR/UGWuNTpI/Bz3lNtEoDJKfG1zKMeB7MQnPv8bKgfbbdwrpKrcYmG1wsujTbgmaKEvwR9SJG3K1Y6ttu06M40xBlflSJtXsUBXeHaDLu7KsgSPkxBybj8PRjjUuQ5rzFSHpBJoZ9Aiz8xIhbIcNkOc7+xN8u1ZUIAvk4BQpjuMfOVf+vXdGEDx+Vp7tHnnobI5OiaBwIDAQAB",
   "minimum_chrome_version": "116",
-  "permissions": ["identity", "alarms", "storage", "scripting", "activeTab", "tabs", "notifications"],
-  "host_permissions": ["https://meetingplz.pages.dev/*", "<all_urls>"],
+  "permissions": ["identity", "alarms", "storage", "scripting", "notifications"],
+  "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "MeetingPlz",
