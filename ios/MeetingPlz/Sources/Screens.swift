@@ -44,6 +44,11 @@ struct SignInView: View {
                 }
                 .buttonStyle(PillButtonStyle(primary: true, big: true))
                 .disabled(model.signingIn)
+                Button { model.startDemo() } label: {
+                    Text("Try it without signing in").font(.system(size: 16, weight: .bold)).foregroundStyle(MP.ink)
+                        .underline().frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .disabled(model.signingIn)
                 Text("Reads your Google Calendar. Nothing else.").font(.system(size: 13)).foregroundStyle(MP.muted)
                 HStack(spacing: 18) {
                     Button("Privacy") { openURL(URL(string: Config.base + "/privacy")!) }
@@ -75,7 +80,16 @@ struct HomeView: View {
             }
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 8)
 
-            if model.notifStatus == .denied {
+            if model.isDemo && !AppModel.hideBanner {
+                Button { model.exitDemo(); Task { await model.signIn() } } label: {
+                    Text("Demo mode \u{00B7} Sign in to use your calendar")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(MP.ink)
+                        .frame(maxWidth: .infinity).outlineCard()
+                }
+                .padding(.horizontal, 20).padding(.bottom, 8)
+            }
+
+            if model.notifStatus == .denied && !model.isDemo {
                 Button { if let u = URL(string: UIApplication.openSettingsURLString) { openURL(u) } } label: {
                     Text("Notifications are off. Tap to turn them on in Settings.")
                         .font(.system(size: 14, weight: .semibold)).foregroundStyle(MP.ink)
@@ -152,6 +166,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Section("Reminder") {
                     Picker("Remind me", selection: bind(\.leadSeconds)) {
@@ -165,7 +180,7 @@ struct SettingsView: View {
                         ForEach(Settings.alarmOptions, id: \.self) { Text($0.capitalized).tag($0) }
                     }
                     Toggle("Real meetings only", isOn: bind(\.meetingsOnly))
-                    if AlarmScheduler.isSupported {
+                    if AlarmScheduler.isSupported && !model.isDemo {
                         Toggle("Ring like an alarm", isOn: Binding(get: { model.alarmKitOn }, set: { model.setAlarmKit($0) }))
                     }
                 }
@@ -179,20 +194,29 @@ struct SettingsView: View {
                             if a.error != nil { Text("Sign in again").font(.footnote).foregroundStyle(MP.muted) }
                             else if a.primary { Text("Main").font(.footnote).foregroundStyle(MP.muted) }
                         }
-                        .deleteDisabled(accounts.count <= 1)
+                        .deleteDisabled(accounts.count <= 1 || model.isDemo)
                     }
                     .onDelete { idx in
                         let ids = idx.map { accounts[$0].id }
-                        for id in ids { Task { await model.removeAccount(id) } }
+                        if !model.isDemo { for id in ids { Task { await model.removeAccount(id) } } }
                     }
-                    Button { Task { await model.addAccount() } } label: {
-                        if model.linking { ProgressView() } else { Text("Add another Google account") }
+                    if model.isDemo {
+                        Button("Sign in to add your Google accounts") { dismiss(); model.exitDemo(); Task { await model.signIn() } }
+                    } else {
+                        Button { Task { await model.addAccount() } } label: {
+                            if model.linking { ProgressView() } else { Text("Add another Google account") }
+                        }
+                        .disabled(model.linking)
                     }
-                    .disabled(model.linking)
                 }
+                .id("accounts")
                 Section("Account") {
-                    Button("Sign out") { Task { await model.signOut(); dismiss() } }
-                    Button("Delete account", role: .destructive) { confirmDelete = true }
+                    if model.isDemo {
+                        Button("Exit demo") { dismiss(); model.exitDemo() }
+                    } else {
+                        Button("Sign out") { Task { await model.signOut(); dismiss() } }
+                        Button("Delete account", role: .destructive) { confirmDelete = true }
+                    }
                     if let err = model.errorText { Text(err).font(.footnote).foregroundStyle(MP.muted) }
                 }
                 Section {
@@ -200,6 +224,12 @@ struct SettingsView: View {
                     Button("Terms") { openURL(URL(string: Config.base + "/terms")!) }
                     HStack { Text("Version"); Spacer(); Text(version).foregroundStyle(MP.muted) }
                 }
+            }
+            .onAppear {
+                if CommandLine.arguments.contains("-mpAccounts") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { withAnimation { proxy.scrollTo("accounts", anchor: .top) } }
+                }
+            }
             }
             .scrollContentBackground(.hidden)
             .background(MP.paper)

@@ -87,41 +87,25 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
-      - name: Boot simulator
+      - name: List simulators
+        run: xcrun simctl list devices available | grep -i iphone || true
+      - name: Capture 6.9 inch (1320x2868)
+        run: tools/capture.sh 'iPhone (16|17) Pro Max' shots/6.9 "$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/MeetingPlz.app"
+      - name: Capture 6.5 inch (1284x2778)
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "
-          import json,sys
-          d=json.load(sys.stdin)['devices']
-          c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']]
-          c=c or [x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
-          print(c[-1]['udid'])")
-          echo "UDID=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl ui "$UDID" appearance light
-          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 || true
-          xcrun simctl install "$UDID" "$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/MeetingPlz.app"
-      - name: Capture screens
-        run: |
-          mkdir -p shots
-          shot() { # name wait args...
-            name=$1; wait=$2; shift 2
-            xcrun simctl terminate "$UDID" com.dai.meetingplz 2>/dev/null || true
-            xcrun simctl launch "$UDID" com.dai.meetingplz "$@"
-            sleep "$wait"
-            xcrun simctl io "$UDID" screenshot "shots/ios-$name.png"
-          }
-          shot signin 3 -mpDemo -mpSignedOut
-          shot home 3 -mpDemo
-          shot settings 4 -mpDemo -mpSettings
-          shot reminder-flyby-early 2.2 -mpDemo -mpReminder
-          shot reminder-flyby 5.5 -mpDemo -mpReminder
-          shot reminder-takeover 4 -mpDemo -mpReminder -mpTakeover
-          xcrun simctl ui "$UDID" appearance dark
-          shot home-dark 3 -mpDemo
-          shot reminder-dark 5.5 -mpDemo -mpReminder
-          ls -la shots
+          if tools/capture.sh 'iPhone (14 Plus|13 Pro Max|12 Pro Max)' shots/6.5 "$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/MeetingPlz.app"; then
+            echo "native 6.5 simulator used"
+          else
+            echo "no 6.5 simulator available; deriving from the 6.9 captures"
+            mkdir -p shots/6.5
+            for f in shots/6.9/*.png; do
+              cp "$f" "shots/6.5/$(basename "$f")"
+              sips --resampleWidth 1284 "shots/6.5/$(basename "$f")" >/dev/null
+              sips --cropToHeightWidth 2778 1284 "shots/6.5/$(basename "$f")" >/dev/null
+            done
+          fi
+          for f in shots/6.5/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo "$f"; done
       - uses: actions/upload-artifact@v4
         with:
           name: ios-screenshots
-          path: ios/shots/*.png
+          path: ios/shots/**/*.png

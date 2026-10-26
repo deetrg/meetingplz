@@ -13,7 +13,9 @@ struct ReminderState: Identifiable, Equatable {
 final class AppModel: ObservableObject {
     static let shared = AppModel()
 
-    static let demo = CommandLine.arguments.contains("-mpDemo")
+    /// Demo mode: sample meetings, nothing stored or sent. On via the "Try it without signing in" link, or the -mpDemo launch argument (CI screenshots).
+    @Published var isDemo = CommandLine.arguments.contains("-mpDemo")
+    static let hideBanner = CommandLine.arguments.contains("-mpClean")
     @Published var token: String? = CommandLine.arguments.contains("-mpDemo") ? (CommandLine.arguments.contains("-mpSignedOut") ? nil : "demo") : Keychain.get()
     @Published var me: Me?
     @Published var settings = Settings.load()
@@ -39,7 +41,22 @@ final class AppModel: ObservableObject {
         return e
     }
 
-    // MARK: demo (used for CI screenshots only)
+    // MARK: demo
+
+    func startDemo() {
+        isDemo = true
+        demoDone = false
+        errorText = nil
+        token = "demo"
+        setupDemo()
+    }
+
+    func exitDemo() {
+        isDemo = false; demoDone = false
+        token = nil; me = nil; events = []; reminder = nil; loaded = false
+        settings = Settings.load()
+        AlarmPlayer.shared.stop()
+    }
 
     private var demoDone = false
     func setupDemo() {
@@ -47,14 +64,15 @@ final class AppModel: ObservableObject {
         demoDone = true
         let now = Date()
         func ev(_ k: String, _ t: String, _ m: Double, _ len: Double, _ link: String?, _ att: String) -> MPEvent {
-            MPEvent(key: k, id: k, title: t, start: now.addingTimeInterval(m * 60), end: now.addingTimeInterval((m + len) * 60), link: link, calendar: "dai@example.com", attendees: att)
+            MPEvent(key: k, id: k, title: t, start: now.addingTimeInterval(m * 60), end: now.addingTimeInterval((m + len) * 60), link: link, calendar: "you@example.com", attendees: att)
         }
-        me = Me(email: "dai@example.com", name: "Dai", picture: nil, settings: nil,
-                accounts: [GoogleAccount(id: "1", email: "dai@example.com", picture: nil, primary: true, error: nil),
-                           GoogleAccount(id: "2", email: "dai@work.example", picture: nil, primary: false, error: nil)])
+        me = Me(email: "you@example.com", name: "Demo", picture: nil, settings: nil,
+                accounts: [GoogleAccount(id: "1", email: "you@example.com", picture: nil, primary: true, error: nil),
+                           GoogleAccount(id: "2", email: "you@work.example", picture: nil, primary: false, error: nil)])
         events = [ev("a", "Quick sync", 32, 30, "https://meet.google.com/abc-defg-hij", "with Miles and 3 others"),
                   ev("b", "Design review", 95, 45, "https://zoom.us/j/123456", "with Lan and 1 other"),
                   ev("c", "Weekly 1:1", 240, 30, "https://teams.microsoft.com/l/meetup-join/x", "with Phi")]
+        settings = Settings()
         if CommandLine.arguments.contains("-mpTakeover") { settings.style = "takeover" }
         loaded = true
         if CommandLine.arguments.contains("-mpReminder") {
@@ -132,7 +150,7 @@ final class AppModel: ObservableObject {
     // MARK: data
 
     func refresh() async {
-        guard isSignedIn, !AppModel.demo else { return }
+        guard isSignedIn, !isDemo else { return }
         isRefreshing = true
         defer { isRefreshing = false; loaded = true }
         do {
@@ -156,11 +174,13 @@ final class AppModel: ObservableObject {
     }
 
     func rescheduleAll() async {
+        if isDemo { return }
         await NotificationScheduler.shared.reschedule(events: events, settings: settings)
         await AlarmScheduler.reschedule(events: events, settings: settings)
     }
 
     func updateSettings(_ new: Settings) {
+        if isDemo { settings = new; return }   // demo: local only, nothing saved or sent
         settings = new; new.save()
         Task {
             if let saved = try? await api.putSettings(new) { settings = saved; saved.save() }
@@ -169,6 +189,7 @@ final class AppModel: ObservableObject {
     }
 
     func setAlarmKit(_ on: Bool) {
+        if isDemo { return }
         AlarmScheduler.enabled = on; alarmKitOn = on
         Task { await rescheduleAll() }
     }
@@ -208,7 +229,7 @@ final class AppModel: ObservableObject {
         }
         reminder = nil
         AlarmPlayer.shared.stop()
-        if isSignedIn { Task { await rescheduleAll() } }
+        if isSignedIn, !isDemo { Task { await rescheduleAll() } }
     }
 
     func snooze() {
@@ -230,7 +251,7 @@ final class AppModel: ObservableObject {
 
     /// Called every second while the app is active.
     func tick() {
-        guard isSignedIn, reminder == nil else { return }
+        guard isSignedIn, !isDemo, reminder == nil else { return }
         let now = Date()
         for (key, until) in snoozed where until <= now {
             snoozed[key] = nil
@@ -247,7 +268,7 @@ final class AppModel: ObservableObject {
 
     func handleActive() async {
         if let url = PendingJoin.take() { _ = await UIApplication.shared.open(url) }
-        if AppModel.demo { setupDemo(); return }
+        if isDemo { setupDemo(); return }
         await refreshNotifStatus()
         await refresh()
     }
