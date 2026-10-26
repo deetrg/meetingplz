@@ -54,7 +54,7 @@ async function runFlow(env, startRes, n, extraCookie = '') {
 
 async function signIn(env, n, client = 'ext') {
   const ret = 'https://abc.chromiumapp.org/cb';
-  const start = await handleApi(req(`/api/auth/google/start?client=${client}&return=${encodeURIComponent(ret)}`), env);
+  const start = await handleApi(new Request(`${client === 'web' ? 'https://meetingplz.nonolingo.com' : ORIGIN}/api/auth/google/start?client=${client}&return=${encodeURIComponent(ret)}`), env);
   const cb = await runFlow(env, start, n);
   const loc = cb.headers.get('location');
   return { cb, token: loc.includes('#token=') ? loc.split('#token=')[1] : null, cookie: (cb.headers.getSetCookie().find((c) => c.startsWith('mp_session=')) || '').split(';')[0] };

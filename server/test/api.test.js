@@ -5,20 +5,24 @@ import { mapEvents, attendeeText } from '../src/events.js';
 import { makeEnv, googleMock } from './helpers.js';
 
 const ORIGIN = 'https://meetingplz.pages.dev';
+const WEB = 'https://meetingplz.nonolingo.com';
 const req = (path, init = {}) => new Request(ORIGIN + path, init);
+const reqWeb = (path, init = {}) => new Request(WEB + path, init);
 const bearer = (t, extra = {}) => ({ headers: { authorization: `Bearer ${t}`, ...(extra.headers || {}) }, ...extra, });
 
 async function signIn(env, { client = 'ext', ret = 'https://abc.chromiumapp.org/cb' } = {}) {
-  const start = await handleApi(req(`/api/auth/google/start?client=${client}&return=${encodeURIComponent(ret)}`), env);
+  const rq = client === 'web' ? reqWeb : req;
+  const origin = client === 'web' ? WEB : ORIGIN;
+  const start = await handleApi(rq(`/api/auth/google/start?client=${client}&return=${encodeURIComponent(ret)}`), env);
   assert.equal(start.status, 302);
   const loc = new URL(start.headers.get('location'));
   assert.equal(loc.origin + loc.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
   assert.equal(loc.searchParams.get('access_type'), 'offline');
   assert.equal(loc.searchParams.get('prompt'), 'consent');
   assert.ok(loc.searchParams.get('scope').includes('calendar.readonly'));
-  assert.equal(loc.searchParams.get('redirect_uri'), `${ORIGIN}/api/auth/google/callback`);
+  assert.equal(loc.searchParams.get('redirect_uri'), `${origin}/api/auth/google/callback`);
   const nonce = start.headers.get('set-cookie').match(/(mp_oauth_[^=]+)=([^;]+)/); const nonceName = nonce[1]; const nonceVal = nonce[2];
-  const cb = await handleApi(req(`/api/auth/google/callback?code=abc&state=${encodeURIComponent(loc.searchParams.get('state'))}`, { headers: { cookie: `${nonceName}=${nonceVal}` } }), env);
+  const cb = await handleApi(rq(`/api/auth/google/callback?code=abc&state=${encodeURIComponent(loc.searchParams.get('state'))}`, { headers: { cookie: `${nonceName}=${nonceVal}` } }), env);
   return cb;
 }
 
@@ -106,14 +110,14 @@ test('callback rejects bad state, missing nonce cookie, and missing calendar sco
   const env = await makeEnv();
   const g = googleMock();
   try {
-    assert.equal((await handleApi(req('/api/auth/google/callback?code=x&state=bad.sig'), env)).status, 400);
-    const start = await handleApi(req('/api/auth/google/start?client=web'), env);
+    assert.equal((await handleApi(reqWeb('/api/auth/google/callback?code=x&state=bad.sig'), env)).status, 400);
+    const start = await handleApi(reqWeb('/api/auth/google/start?client=web'), env);
     const state = new URL(start.headers.get('location')).searchParams.get('state');
-    assert.equal((await handleApi(req(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`), env)).status, 400);
+    assert.equal((await handleApi(reqWeb(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`), env)).status, 400);
     g.restore();
     const g2 = googleMock({ scope: 'openid email profile' });
     const nonce = start.headers.get('set-cookie').match(/(mp_oauth_[^=]+)=([^;]+)/); const nonceName = nonce[1]; const nonceVal = nonce[2];
-    const r = await handleApi(req(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`, { headers: { cookie: `${nonceName}=${nonceVal}` } }), env);
+    const r = await handleApi(reqWeb(`/api/auth/google/callback?code=x&state=${encodeURIComponent(state)}`, { headers: { cookie: `${nonceName}=${nonceVal}` } }), env);
     assert.equal(r.headers.get('location'), '/app?error=calendar_access_needed');
     assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM users').get().n, 0);
     g2.restore();
@@ -253,4 +257,53 @@ test('unknown route 404, OPTIONS preflight gets CORS', async () => {
   const o = await handleApi(req('/api/me', { method: 'OPTIONS', headers: { origin: 'tauri://localhost' } }), env);
   assert.equal(o.status, 204);
   assert.equal(o.headers.get('access-control-allow-origin'), 'tauri://localhost');
+});
+
+test('web sign-in on the canonical domain uses the canonical callback; pages.dev web start hops to it', async () => {
+  const env = await makeEnv();
+  const CANON = 'https://meetingplz.nonolingo.com';
+  const start = await handleApi(new Request(`${CANON}/api/auth/google/start?client=web`), env);
+  assert.equal(start.status, 302);
+  assert.equal(new URL(start.headers.get('location')).searchParams.get('redirect_uri'), `${CANON}/api/auth/google/callback`);
+  const hop = await handleApi(req('/api/auth/google/start?client=web'), env);
+  assert.equal(hop.status, 302);
+  assert.equal(hop.headers.get('location'), `${CANON}/api/auth/google/start?client=web`);
+  // existing native clients keep the pages.dev callback
+  const ext = await handleApi(req('/api/auth/google/start?client=ext&return=https://abc.chromiumapp.org/cb'), env);
+  assert.equal(new URL(ext.headers.get('location')).searchParams.get('redirect_uri'), `${ORIGIN}/api/auth/google/callback`);
+});
+
+test('legacy host: HTML 301s to the canonical domain, /api stays', async () => {
+  const { legacyRedirect } = await import('../src/legacy.js');
+  const r = legacyRedirect('https://meetingplz.pages.dev/privacy?x=1');
+  assert.equal(r.status, 301);
+  assert.equal(r.headers.get('location'), 'https://meetingplz.nonolingo.com/privacy?x=1');
+  assert.equal(legacyRedirect('https://meetingplz.pages.dev/api/me'), null);
+  assert.equal(legacyRedirect('https://meetingplz.nonolingo.com/privacy'), null);
+  assert.equal(legacyRedirect('https://abc123.meetingplz.pages.dev/'), null);
+});
+
+test('calendar-only consent restart asks for calendar.readonly with include_granted_scopes; sign-in completes without id_token', async () => {
+  const env = await makeEnv();
+  const CANON = 'https://meetingplz.nonolingo.com';
+  const start = await handleApi(new Request(`${CANON}/api/auth/google/start?client=web&scope=calendar`), env);
+  const loc = new URL(start.headers.get('location'));
+  assert.equal(loc.searchParams.get('scope'), 'https://www.googleapis.com/auth/calendar.readonly');
+  assert.equal(loc.searchParams.get('include_granted_scopes'), 'true');
+  assert.equal(loc.searchParams.get('access_type'), 'offline');
+  // default start still asks for everything
+  const full = new URL((await handleApi(new Request(`${CANON}/api/auth/google/start?client=web`), env)).headers.get('location'));
+  assert.ok(full.searchParams.get('scope').includes('openid'));
+  // other clients ignore scope=calendar
+  const ext = new URL((await handleApi(req('/api/auth/google/start?client=ext&scope=calendar&return=https://abc.chromiumapp.org/cb'), env)).headers.get('location'));
+  assert.ok(ext.searchParams.get('scope').includes('openid'));
+  // callback: token response without id_token falls back to userinfo
+  const g = googleMock({ noIdToken: true });
+  try {
+    const nonce = start.headers.get('set-cookie').match(/(mp_oauth_[^=]+)=([^;]+)/);
+    const cb = await handleApi(new Request(`${CANON}/api/auth/google/callback?code=abc&state=${encodeURIComponent(loc.searchParams.get('state'))}`, { headers: { cookie: `${nonce[1]}=${nonce[2]}` } }), env);
+    assert.equal(cb.status, 302);
+    assert.equal(cb.headers.get('location'), '/app');
+    assert.ok(cb.headers.getSetCookie().some((c) => c.startsWith('mp_session=')));
+  } finally { g.restore(); }
 });

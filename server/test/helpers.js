@@ -64,11 +64,12 @@ export function mockFetch(handler) {
 export const jsonRes = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } });
 
 // Fake Google: oauth + calendar
-export function googleMock({ events = [], scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly', refresh = 'rt-1', sub = 'sub-1', email = 'a@b.com' } = {}) {
+export function googleMock({ events = [], scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly', refresh = 'rt-1', sub = 'sub-1', email = 'a@b.com', noIdToken = false } = {}) {
   return mockFetch((url) => {
     if (url === 'https://oauth2.googleapis.com/token') {
-      return jsonRes({ access_token: 'at', refresh_token: refresh, scope, id_token: idToken({ sub, email, name: 'Dai T', picture: 'https://p/x.png' }) });
+      return jsonRes({ access_token: 'at', refresh_token: refresh, scope, ...(noIdToken ? {} : { id_token: idToken({ sub, email, name: 'Dai T', picture: 'https://p/x.png' }) }) });
     }
+    if (url === 'https://openidconnect.googleapis.com/v1/userinfo') return jsonRes({ sub, email, name: 'Dai T', picture: 'https://p/x.png' });
     if (url.startsWith('https://www.googleapis.com/calendar/v3/users/me/calendarList')) {
       return jsonRes({ items: [{ id: email, selected: true, primary: true }, { id: 'x#holiday@group.v.calendar.google.com', selected: true }] });
     }

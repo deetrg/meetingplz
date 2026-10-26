@@ -3,12 +3,12 @@ export const CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
 export class GoogleAuthError extends Error {}
 
-export function authUrl(env, { redirectUri, state, select = false }) {
+export function authUrl(env, { redirectUri, state, select = false, scope = SCOPES }) {
   const p = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: SCOPES,
+    scope,
     access_type: 'offline',
     prompt: select ? 'consent select_account' : 'consent',
     include_granted_scopes: 'true',
@@ -29,6 +29,12 @@ async function tokenCall(env, params) {
     throw new Error(`google_token_${res.status}`);
   }
   return data;
+}
+
+export async function userinfo(accessToken) {
+  const res = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`google_userinfo_${res.status}`);
+  return res.json();
 }
 
 export const exchangeCode = (env, code, redirectUri) =>

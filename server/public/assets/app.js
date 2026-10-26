@@ -179,7 +179,20 @@
   }
 
   /* ---------- render ---------- */
+  // Google returned without the calendar box ticked: explain, and restart consent for that one scope only.
+  function renderConsentStep() {
+    root.innerHTML =
+      '<div class="splash">' +
+      '<img class="art" src="/shared/art/calendar-check.svg" alt="" width="200" height="200">' +
+      '<h1>One more step.</h1>' +
+      '<p style="max-width:320px">Tick <b>\u201CSee your calendars\u201D</b> on Google\'s screen so MeetingPlz can remind you before each meeting.</p>' +
+      '<a class="btn primary" id="consent-retry" href="/api/auth/google/start?client=web&amp;scope=calendar"><span class="gmark">' + G_SVG + '</span>Continue</a>' +
+      '<div class="small muted"><a href="/privacy">Privacy</a> \u00B7 <a href="/terms">Terms</a></div>' +
+      '</div>';
+  }
+
   function renderSignedOut(error) {
+    if (error === 'calendar_access_needed') { renderConsentStep(); return; }
     root.innerHTML =
       '<div class="splash">' +
       '<img class="art drift" src="/shared/art/plane.svg" alt="" width="300" height="125">' +

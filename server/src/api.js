@@ -1,6 +1,6 @@
 import core from './vendor/core.cjs';
 import { decryptToken, encryptToken } from './crypto.js';
-import { GoogleAuthError, CAL_SCOPE, authUrl, exchangeCode, idClaims, revokeToken } from './google.js';
+import { GoogleAuthError, CAL_SCOPE, authUrl, exchangeCode, idClaims, revokeToken, userinfo } from './google.js';
 import { listAccounts, loadUpcoming } from './events.js';
 import { buildPayload, pushToUser } from './notify.js';
 import { sendWebPush } from './push.js';
@@ -52,8 +52,14 @@ const redirect = (location, cookies = []) => {
   return new Response(null, { status: 302, headers: h });
 };
 
+export const CANONICAL_ORIGIN = 'https://meetingplz.nonolingo.com';
+// Hosts that may serve /api/*. The legacy pages.dev host keeps working for the desktop, extension and iOS builds
+// that already call it (their OAuth callback stays on the host that started the flow).
+const SERVED_ORIGINS = new Set([CANONICAL_ORIGIN, 'https://meetingplz.pages.dev']);
+
 function publicOrigin(env, url) {
-  return env.PUBLIC_URL || url.origin;
+  if (SERVED_ORIGINS.has(url.origin) || url.origin === env.PUBLIC_URL) return url.origin;
+  return env.PUBLIC_URL || CANONICAL_ORIGIN;
 }
 
 async function readBody(request) {
@@ -96,12 +102,16 @@ async function authStart(request, env, url) {
   const ret = url.searchParams.get('return') || '';
   if (!CLIENTS.includes(client)) return json({ error: 'bad_client' }, 400);
   if (!validReturn(client, ret)) return json({ error: 'bad_return' }, 400);
-  const { url: gurl, nonceCookie } = await oauthStart(env, url, { client, ret });
+  // Web sign-in always happens on the canonical domain (cookie + OAuth callback live there).
+  if (client === 'web' && url.origin === 'https://meetingplz.pages.dev') {
+    return redirect(`${CANONICAL_ORIGIN}/api/auth/google/start${url.search}`);
+  }
+  const { url: gurl, nonceCookie } = await oauthStart(env, url, { client, ret, calendarOnly: client === 'web' && url.searchParams.get('scope') === 'calendar' });
   return redirect(gurl, [nonceCookie]);
 }
 
 // Signed OAuth state + Google URL. `link` = MeetingPlz user id when adding another Google account.
-async function oauthStart(env, url, { client, ret, link = '' }) {
+async function oauthStart(env, url, { client, ret, link = '', calendarOnly = false }) {
   const nonce = randomToken(16);
   const st = { c: client, r: client === 'web' ? '' : ret, n: nonce, e: Date.now() + 10 * 60000 };
   if (link) st.link = link;
@@ -109,7 +119,7 @@ async function oauthStart(env, url, { client, ret, link = '' }) {
   const state = `${payload}.${await hmacSign(env.SESSION_PEPPER, payload)}`;
   const redirectUri = `${publicOrigin(env, url)}/api/auth/google/callback`;
   return {
-    url: authUrl(env, { redirectUri, state, select: !!link }),
+    url: authUrl(env, { redirectUri, state, select: !!link, ...(calendarOnly ? { scope: CAL_SCOPE } : {}) }),
     nonceCookie: cookie(`mp_oauth_${nonce.slice(0, 10)}`, nonce, { maxAge: 600, path: '/api/auth' }),
   };
 }
@@ -217,7 +227,8 @@ async function authCallback(request, env, url) {
   let tok, claims;
   try {
     tok = await exchangeCode(env, code, `${publicOrigin(env, url)}/api/auth/google/callback`);
-    claims = idClaims(tok.id_token);
+    // Incremental consent (calendar only + include_granted_scopes) may come back without an id_token on some accounts.
+    claims = tok.id_token ? idClaims(tok.id_token) : await userinfo(tok.access_token);
   } catch {
     return failRedirect(st.c, st.r, 'google_exchange_failed', st);
   }

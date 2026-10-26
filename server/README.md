@@ -2,7 +2,7 @@
 
 Cloudflare, free plan. No KV.
 
-- **Pages project `meetingplz`** (https://meetingplz.pages.dev): marketing site (`/`, `/privacy`, `/terms`, `/chrome`, `/iphone`), the web app (`/app`, PWA) and Pages Functions under `/api/*`.
+- **Pages project `meetingplz`** (canonical https://meetingplz.nonolingo.com, custom domain, CNAME `meetingplz` -> `meetingplz.pages.dev` proxied; https://meetingplz.pages.dev still serves `/api/*` for older desktop/extension/iOS builds and 301s every HTML page to the canonical domain via `functions/_middleware.js`): marketing site (`/`, `/privacy`, `/terms`, `/chrome`, `/iphone`), the web app (`/app`, PWA) and Pages Functions under `/api/*`.
 - **D1 `meetingplz-db`**: `users`, `google_accounts`, `sessions`, `push_subs`, `events_cache`, `fired`, `snoozes`, `link_codes` (`migrations/`). `google_accounts` holds every linked Google account (token, email) per user; `users.google_sub`/`email` are the primary account.
 - **Worker `meetingplz-cron`** (cron `* * * * *`): Web Push reminders, VAPID + aes128gcm on Web Crypto only.
 
@@ -53,7 +53,7 @@ $W deploy -c cron/wrangler.toml
 
 `TOKEN_KEY` and `SESSION_PEPPER` are 32 random bytes (base64url). `VAPID_PUBLIC_KEY` is the uncompressed P-256 public point (65 bytes, base64url); `VAPID_PRIVATE_KEY` is the JWK `d` of the same key (base64url).
 
-Google OAuth: Web application client "MeetingPlz Web" in GCP project `stop-everything-512408`, redirect URIs `https://meetingplz.pages.dev/api/auth/google/callback` and `http://127.0.0.1:8788/api/auth/google/callback` (local: `wrangler pages dev dist --port 8788`, with `PUBLIC_URL=http://127.0.0.1:8788` in `.dev.vars`).
+Google OAuth: Web application client "MeetingPlz Web" in GCP project `stop-everything-512408`, redirect URIs `https://meetingplz.nonolingo.com/api/auth/google/callback` (web), `https://meetingplz.pages.dev/api/auth/google/callback` (native clients keep it) and `http://127.0.0.1:8788/api/auth/google/callback` (local: `wrangler pages dev dist --port 8788`, with `PUBLIC_URL=http://127.0.0.1:8788` in `.dev.vars`).
 
 ## API
 
@@ -61,7 +61,7 @@ All JSON. Auth is `Authorization: Bearer <session token>` or the `mp_session` co
 
 | Endpoint | Notes |
 | --- | --- |
-| `GET /api/auth/google/start?client=web\|ext\|desktop\|ios&return=<url>` | `return` must be `https://*.chromiumapp.org/*`, `http://127.0.0.1:<port>/*` or `meetingplz://auth`. Web gets a cookie and goes to `/app`; others get `return#token=<token>` (or `return#error=<code>`). |
+| `GET /api/auth/google/start?client=web\|ext\|desktop\|ios&return=<url>` | `return` must be `https://*.chromiumapp.org/*`, `http://127.0.0.1:<port>/*` or `meetingplz://auth`. Web gets a cookie and goes to `/app` (on pages.dev a web start hops to the canonical domain; `scope=calendar` (web only) restarts consent for `calendar.readonly` alone with `include_granted_scopes=true`, used by the "One more step" screen after Google returned without the calendar box ticked); others get `return#token=<token>` (or `return#error=<code>`). |
 | `GET /api/me` | `{ email, name, picture, settings, accounts: [{ id, email, picture, primary, error }] }` (`error` is `'reauth'` when that account needs to be linked again) |
 | `POST /api/accounts/link` | body `{ client, return }` (same rules as sign-in) -> `{ url }`, a Google URL (account chooser) whose signed state links the chosen account to the caller. Web: the callback attaches the account (needs the cookie session of the same user) and redirects to `/app?linked=1`. Other clients: the callback attaches nothing; it parks the Google tokens under a one-time code (hashed, 5 min) and redirects to `return#link_code=<code>`. Errors as `#error=<code>` (`calendar_access_needed`, `no_refresh_token`, `link_failed`). |
 | `POST /api/accounts/link/complete` | `{ code }` with the client's Bearer token; attaches the parked account only if the caller is the user the link was started for (`403 link_failed` otherwise), deletes the code (replay `400 bad_code`, late `400 code_expired`). A Google account that is already a MeetingPlz user with no other accounts is folded into the caller; otherwise `409 account_in_use`. |
