@@ -23,10 +23,11 @@ shot() { # name wait args...
   sleep "$wait"
   xcrun simctl io "$UDID" screenshot "$OUT/$name.png"
 }
-shot 1-home 4
+shot 3-reminder-fullscreen 4 -mpReminder -mpTakeover
 shot 2-reminder-flyby 6.5 -mpReminder
-shot 3-reminder-fullscreen 5 -mpReminder -mpTakeover
+shot 1-home 4
 shot 4-settings 4 -mpSettings
-shot 5-accounts 4 -mpSettings -mpAccounts
+xcrun simctl ui "$UDID" appearance dark
+shot 5-home-dark 4
 xcrun simctl shutdown "$UDID" || true
 for f in "$OUT"/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo "$f"; done
