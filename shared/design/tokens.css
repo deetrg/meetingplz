@@ -1,0 +1,61 @@
+/* MeetingPlz design v2 ("Final call"): tokens. Source of truth: DESIGN.md §3.
+ * Light by default, dark via prefers-color-scheme, forced with <html data-theme="light|dark">.
+ * Fonts are bundled (never loaded from Google): Instrument Serif + Geist Mono, both OFL (see fonts/OFL-*.txt).
+ * Family names are MPZ Serif / MPZ Mono so they never collide with a page's own fonts. */
+
+@font-face{font-family:"MPZ Serif";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/InstrumentSerif-Regular.woff2") format("woff2")}
+@font-face{font-family:"MPZ Serif";font-style:italic;font-weight:400;font-display:swap;src:url("fonts/InstrumentSerif-Italic.woff2") format("woff2")}
+@font-face{font-family:"MPZ Mono";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/GeistMono-Regular.woff2") format("woff2")}
+@font-face{font-family:"MPZ Mono";font-style:normal;font-weight:500;font-display:swap;src:url("fonts/GeistMono-Medium.woff2") format("woff2")}
+
+:root{
+  color-scheme:light;
+  /* colour */
+  --paper:#F3EFE6;
+  --surface:#FBF9F4;
+  --ink:#171512;
+  --ink-2:#3A3631;
+  --muted:#7A746A;
+  --line:rgba(23,21,18,.12);
+  --line-strong:rgba(23,21,18,.22);
+  --accent:#D4512A;
+  --accent-soft:rgba(212,81,42,.10);
+  --on-ink:#F3EFE6;            /* text on an --ink button */
+  --shadow-pass:0 30px 80px -20px rgba(23,21,18,.45), 0 0 0 1px var(--line);
+  --grain-blend:multiply;
+  --grain-opacity:.035;
+  /* type */
+  --serif:"MPZ Serif","Instrument Serif",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:"MPZ Mono","Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --fs-11:11px;--fs-13:13px;--fs-15:15px;--fs-17:17px;--fs-22:22px;--fs-30:30px;--fs-44:44px;--fs-64:64px;--fs-96:96px;
+  /* spacing (4-pt grid) */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;--sp-7:48px;--sp-8:72px;--sp-9:112px;
+  /* radius */
+  --r-chip:6px;--r-btn:12px;--r-card:18px;--r-phone:28px;
+  /* motion */
+  --ease:cubic-bezier(.16,1,.3,1);
+  --t-hover:160ms;
+  --t-enter:600ms;
+}
+
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#13120F;--surface:#1C1A17;--ink:#F1EDE4;--ink-2:#CFC9BE;--muted:#958F84;
+    --line:rgba(241,237,228,.12);--line-strong:rgba(241,237,228,.22);
+    --accent:#EE6A40;--accent-soft:rgba(238,106,64,.14);
+    --on-ink:#13120F;
+    --shadow-pass:0 30px 90px -20px rgba(0,0,0,.8), 0 0 0 1px var(--line);
+    --grain-blend:screen;--grain-opacity:.05;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#13120F;--surface:#1C1A17;--ink:#F1EDE4;--ink-2:#CFC9BE;--muted:#958F84;
+  --line:rgba(241,237,228,.12);--line-strong:rgba(241,237,228,.22);
+  --accent:#EE6A40;--accent-soft:rgba(238,106,64,.14);
+  --on-ink:#13120F;
+  --shadow-pass:0 30px 90px -20px rgba(0,0,0,.8), 0 0 0 1px var(--line);
+  --grain-blend:screen;--grain-opacity:.05;
+}

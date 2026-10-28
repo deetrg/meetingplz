@@ -128,6 +128,53 @@ test('reminder helpers match core', async () => {
   for (const l of ['', null, 'https://meet.google.com/a', 'https://x.zoom.us/j/1', 'https://teams.microsoft.com/l/x', 'https://a.webex.com/m', 'https://whereby.com/r']) assert.equal(R.providerLabel(l), C.providerLabel(l));
 });
 
+test('boarding pass copy: reminder mirrors core', async () => {
+  const R = await import('../reminder/reminder.js');
+  for (const ms of [120000, 1, 0, -42000]) {
+    assert.equal(R.headline(ms), C.headline(ms));
+    assert.equal(R.statusText(ms), C.statusText(ms));
+    assert.equal(R.clockLabel(ms), C.clockLabel(ms));
+  }
+  assert.equal(C.headline(1000), 'Your meeting is boarding.');
+  assert.equal(C.headline(-1000), 'Final call.');
+  assert.equal(C.statusText(5), 'BOARDING');
+  assert.equal(C.statusText(0), 'FINAL CALL');
+  assert.equal(C.clockLabel(5), 'BOARDS IN');
+  assert.equal(C.clockLabel(-5), 'LATE BY');
+  for (const l of ['', null, 'https://meet.google.com/a', 'https://x.zoom.us/j/1', 'https://teams.microsoft.com/l/x', 'https://a.webex.com/m', 'https://whereby.com/r']) assert.equal(R.gateLabel(l), C.gateLabel(l));
+  assert.equal(C.gateLabel('https://meet.google.com/a'), 'Google Meet');
+  assert.equal(C.gateLabel(''), '\u2014');
+  for (const a of ['', null, 'with Miles', 'with Miles and 3 others', 'with Anna and 1 other', ['Miles', 'Anna', 'Lee'], [{ name: 'Miles' }]]) assert.equal(R.withText(a), C.withText(a));
+  assert.equal(C.withText('with Miles and 3 others'), 'Miles +3');
+  assert.equal(C.withText('with Anna and 1 other'), 'Anna +1');
+  assert.equal(C.withText('with Miles'), 'Miles');
+  assert.equal(C.withText(''), '');
+  for (const c of ['1:58', '0:42', '12:05', '1:02:03']) assert.equal(R.padClock(c), C.padClock(c));
+  assert.equal(C.padClock('1:58'), '01:58');
+  assert.equal(C.padClock('12:05'), '12:05');
+});
+
+test('fonts.js is generated and registers the MPZ families', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const F = require('../design/fonts.js');
+  assert.deepEqual(F.FAMILIES, { serif: 'MPZ Serif', mono: 'MPZ Mono' });
+  assert.deepEqual(F.FACES.map((f) => f.join('|')), ['MPZ Serif|normal|400', 'MPZ Serif|italic|400', 'MPZ Mono|normal|400', 'MPZ Mono|normal|500']);
+  for (const f of ['InstrumentSerif-Regular', 'InstrumentSerif-Italic', 'GeistMono-Regular', 'GeistMono-Medium']) {
+    const b64 = fs.readFileSync(path.join(__dirname, '../design/fonts', f + '.woff2')).toString('base64');
+    assert.ok(fs.readFileSync(path.join(__dirname, '../design/fonts.js'), 'utf8').includes(b64.slice(0, 200)), f + ' is stale: run node shared/build.js');
+  }
+  const iife = fs.readFileSync(path.join(__dirname, '../reminder/reminder.iife.js'), 'utf8');
+  assert.ok(iife.includes('MeetingPlzFonts'), 'iife must bundle fonts.js');
+  return F.register().then((r) => assert.deepEqual(r, [])); // no FontFace in node: resolves to []
+});
+
+test('plane art: 1.75 stroke and accent tail stripe', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const plane = fs.readFileSync(path.join(__dirname, '../art/plane.svg'), 'utf8');
+  assert.ok(plane.includes('stroke-width="1.75"') && plane.includes('#D4512A'));
+  assert.ok(fs.existsSync(path.join(__dirname, '../art/clouds.svg')));
+});
+
 test('iife is in sync with reminder.js', () => {
   const fs = require('node:fs'); const path = require('node:path');
   const src = fs.readFileSync(path.join(__dirname, '../reminder/reminder.js'), 'utf8');
