@@ -108,7 +108,7 @@ await step('inject token into chrome.storage.local', async () => {
 
 await step('popup signed in', async () => {
   popup = await browser.newPage();
-  await popup.setViewport({ width: 360, height: 800, deviceScaleFactor: 2 });
+  await popup.setViewport({ width: 360, height: 880, deviceScaleFactor: 2 });
   await popup.goto(`chrome-extension://${EXT_ID}/popup.html`, { waitUntil: 'load' });
   await popup.waitForFunction(() => !document.getElementById('in').hidden || !document.getElementById('out').hidden, { timeout: 15000 });
   await sleep(800);

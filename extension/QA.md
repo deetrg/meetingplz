@@ -8,9 +8,9 @@ Build: `cd extension && npm test && npm run build` (or download `meetingplz-exte
 3. Confirm the id is `afkodmbjfhhmcmihogbkdpknlogjhpfp` and no errors show on the card. Pin the extension.
 
 ## Checklist
-- [ ] Popup signed out: plane illustration, `MeetingPlz.`, **Continue with Google**.
+- [ ] Popup signed out (design v2, 360 px): plane line art, wordmark, "Your meetings, on time.", the Google-branded **Continue with Google** button.
 - [ ] Continue with Google opens the Google consent window; after approval the popup shows the signed-in view (email top right). Calendar read-only is requested.
-- [ ] Signed in: next meeting card (title, time range, "in N minutes", Join button when it has a link) or the "No meetings coming up" state.
+- [ ] Signed in: next meeting as a mini boarding pass (serif title, DEPARTS / GATE, status chip ON TIME / BOARDING / FINAL CALL, countdown, **Join →** when it has a link) or the "Clear skies." empty state; segmented Remind me / Style / Alarm; accounts as dashed stamps; footer links.
 - [ ] Toolbar badge shows minutes to the next meeting when it is 60 min or less, empty otherwise.
 - [ ] **Test it** on a normal site (e.g. wikipedia.org): after about 2 s the flyby plane crosses and the card appears over the page; page behind stays clickable in flyby.
 - [ ] Switch Style to Takeover, Test it again: full-screen white card, nothing else usable.
