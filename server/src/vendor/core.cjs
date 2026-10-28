@@ -212,6 +212,34 @@
     return h > 0 ? h + ':' + pad2(m) + ':' + pad2(s) : m + ':' + pad2(s);
   }
 
+
+  /* ---------- boarding-pass copy (design v2) ---------- */
+
+  // Headline on the reminder: "Your meeting is boarding." until the start, then "Final call."
+  function headline(ms) { return ms > 0 ? 'Your meeting is boarding.' : 'Final call.'; }
+  // Status chip text: BOARDING before start, FINAL CALL after.
+  function statusText(ms) { return ms > 0 ? 'BOARDING' : 'FINAL CALL'; }
+  // Label above the countdown.
+  function clockLabel(ms) { return ms > 0 ? 'BOARDS IN' : 'LATE BY'; }
+  // Countdown as mm:ss ("01:58"; hours when needed).
+  function padClock(c) { return /^\d:\d\d$/.test(c) ? '0' + c : c; }
+  // GATE label: where the meeting happens.
+  function gateLabel(link) {
+    var p = providerOf(link);
+    return p === 'meet' ? 'Google Meet' : p === 'zoom' ? 'Zoom' : p === 'teams' ? 'Teams' : p === 'webex' ? 'Webex' : p === 'other' ? 'Link' : '\u2014';
+  }
+  // WITH label: "with Miles and 3 others" -> "Miles +3".
+  function withText(att) {
+    if (Array.isArray(att)) {
+      var names = att.map(function (a) { return typeof a === 'string' ? a : (a && (a.name || a.displayName || a.email)) || ''; }).filter(Boolean);
+      if (!names.length) return '';
+      return names.length > 1 ? names[0] + ' +' + (names.length - 1) : names[0];
+    }
+    var s = String(att == null ? '' : att).replace(/^\s*with\s+/i, '').trim();
+    var m = /^(.*?)\s+and\s+(\d+)\s+others?$/i.exec(s);
+    return m ? m[1] + ' +' + m[2] : s;
+  }
+
   /* ---------- settings ---------- */
 
   // Returns only the valid keys found in `partial` (coerced). Safe to merge over stored settings.
@@ -252,6 +280,12 @@
     providerLabel: providerLabel,
     extractMeetingLink: extractMeetingLink,
     fmtClock: fmtClock,
+    headline: headline,
+    statusText: statusText,
+    clockLabel: clockLabel,
+    padClock: padClock,
+    gateLabel: gateLabel,
+    withText: withText,
     validateSettings: validateSettings,
     normalizeSettings: normalizeSettings
   };

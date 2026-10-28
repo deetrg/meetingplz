@@ -6,8 +6,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="A reminder with a Join button, two minutes before every meeting.">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3EFE6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#13120F" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MeetingPlz">
@@ -15,12 +15,17 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="/shared/art/icon-32.png">
 <link rel="apple-touch-icon" href="/shared/art/icon-180.png">
+<link rel="preload" href="/shared/design/fonts/InstrumentSerif-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/shared/design/fonts/GeistMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/shared/design/tokens.css">
+<link rel="stylesheet" href="/shared/design/components.css">
 <link rel="stylesheet" href="/assets/mp.css">
 <link rel="stylesheet" href="/assets/app.css">
 </head>
-<body>
-<div id="root" class="wrap" aria-live="polite"></div>
+<body class="grain app">
+<div id="root" aria-live="polite"></div>
 <div id="dl-src" hidden><!--DOWNLOADS--></div>
+<div id="art-src" hidden><div data-art="clouds"><!--ART:clouds--></div><div data-art="plane"><!--ART:plane--></div><div data-art="calendar-check"><!--ART:calendar-check--></div></div>
 <script src="/shared/core.js"></script>
 <script src="/shared/reminder/reminder.iife.js"></script>
 <script src="/assets/app.js"></script>
