@@ -34,6 +34,20 @@ struct PassShape: Shape {
     }
 }
 
+/// Everything except the two notch circles (even-odd), so the pass shadow never fills the cut-outs.
+struct NotchMask: Shape {
+    var notchY: CGFloat
+    var hole: CGFloat = 9
+    var animatableData: CGFloat { get { notchY } set { notchY = newValue } }
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.addRect(rect.insetBy(dx: -140, dy: -140))
+        p.addEllipse(in: CGRect(x: rect.minX - hole, y: notchY - hole, width: hole * 2, height: hole * 2))
+        p.addEllipse(in: CGRect(x: rect.maxX - hole, y: notchY - hole, width: hole * 2, height: hole * 2))
+        return p
+    }
+}
+
 private struct TopHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
@@ -71,7 +85,6 @@ struct ReminderOverlay: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(alignment: .topLeading) { plane(width: geo.size.width, height: geo.size.height) }
-            .clipped()
         }
         .onAppear {
             guard !reduceMotion else { showCard = true; return }
@@ -93,7 +106,7 @@ struct ReminderOverlay: View {
                 let total = TowedBanner.totalWidth(text)
                 TowedBanner(text: text)
                     .fixedSize()
-                    .offset(x: -total + (width + total) * planeProgress, y: height * 0.16)
+                    .offset(x: -total + (width + total) * planeProgress, y: height * 0.09)
                     .allowsHitTesting(false)
             }
         }
@@ -134,6 +147,8 @@ struct ReminderOverlay: View {
                 PassShape(notchY: topHeight)
                     .fill(MP.surface)
                     .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.28), radius: 28, x: 0, y: 18)
+                    // keep the notches clean: no shadow inside the two cut-outs
+                    .mask { NotchMask(notchY: topHeight).fill(Color.black, style: FillStyle(eoFill: true)) }
             }
             .overlay(alignment: .topLeading) { PassShape(notchY: topHeight).stroke(MP.line, lineWidth: 1) }
             .overlay(alignment: .topLeading) {

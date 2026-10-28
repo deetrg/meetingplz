@@ -32,6 +32,7 @@ shot 4-settings 4 -mpSettings
 shot v2/signin 3 -mpSignedOut
 shot v2/home 4
 shot v2/reminder-pass 4.5 -mpReminder -mpTakeover
+shot v2/reminder-flyby-mid 2.6 -mpReminder
 shot v2/reminder-flyby 6.5 -mpReminder
 shot v2/reminder-late 4.5 -mpReminder -mpTakeover -mpLate
 shot v2/settings 4 -mpSettings
