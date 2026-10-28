@@ -106,7 +106,7 @@ struct ReminderOverlay: View {
                 let total = TowedBanner.totalWidth(text)
                 TowedBanner(text: text)
                     .fixedSize()
-                    .offset(x: -total + (width + total) * planeProgress, y: height * 0.09)
+                    .offset(x: -total + (width + total) * planeProgress, y: height * 0.075)
                     .allowsHitTesting(false)
             }
         }
@@ -116,18 +116,21 @@ struct ReminderOverlay: View {
 
     private var boardBackdrop: some View {
         let rows = Array(Core.eventsToShow(model.events, settings: model.settings).filter { $0.key != e.key }.prefix(4))
-        return VStack(alignment: .leading, spacing: 20) {
-            ForEach(rows) { r in
-                HStack(spacing: 14) {
-                    Text(Core.boardTime(r.startDate))
-                    Text(r.title).lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .font(.mono(14))
+        func row(_ r: MPEvent) -> some View {
+            HStack(spacing: 14) {
+                Text(Core.boardTime(r.startDate))
+                Text(r.title).lineLimit(1)
+                Spacer(minLength: 0)
             }
+            .font(.mono(14))
+        }
+        return VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 22) { ForEach(Array(rows.prefix(2))) { row($0) } }
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 22) { ForEach(Array(rows.dropFirst(2))) { row($0) } }
         }
         .foregroundStyle(MP.ink).opacity(0.07)
-        .padding(.horizontal, 28).padding(.top, 120)
+        .padding(.horizontal, 28).padding(.top, 36).padding(.bottom, 36)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
     }
