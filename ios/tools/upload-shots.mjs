@@ -2,7 +2,7 @@
 import fs from 'node:fs'; import crypto from 'node:crypto';
 import {api} from './asc.mjs';
 const LOC='6c05a660-d594-47b4-9c9e-ec15ad0b7d93';
-const sets=[['APP_IPHONE_69',process.argv[2]],['APP_IPHONE_65',process.argv[3]]];
+const sets=[['APP_IPHONE_67',process.argv[2]],['APP_IPHONE_65',process.argv[3]]];
 const err=r=>JSON.stringify(r.json?.errors?.map(e=>e.code+': '+e.detail));
 for(const [type,dir] of sets){
   const files=fs.readdirSync(dir).filter(f=>f.endsWith('.png')).sort();
