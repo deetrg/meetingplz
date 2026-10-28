@@ -310,7 +310,7 @@
       : '<div class="who"><button class="avatar-btn" id="menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">' + avatar + '</button>' +
         '<div class="menu" id="menu" role="menu" hidden><div class="menu__em">' + esc(me.email) + '</div><button id="logout" type="button" role="menuitem">Sign out</button></div></div>';
     root.innerHTML =
-      (state.demo ? '<div class="demo" role="note"><span>Demo mode \u00B7 sample meetings, settings stay on this device</span><a href="/api/auth/google/start?client=web" id="demo-signin">Sign in</a></div>' : '') +
+      (state.demo ? '<div class="demo" role="note"><span>Demo mode<span class="hide-sm"> \u00B7 sample meetings, settings stay on this device</span></span><a href="/api/auth/google/start?client=web" id="demo-signin">Sign in</a></div>' : '') +
       '<div class="shell">' +
       '<header class="bar">' + WORDMARK + who + '</header>' +
       '<section class="sec"><div class="sec__head"><div><span class="lab">Departures \u00B7 next 24 hours</span><h1 class="sec__h">Next up</h1></div></div>' +

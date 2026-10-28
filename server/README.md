@@ -15,7 +15,7 @@ server/
   src/vendor/core.cjs  copy of shared/core.js (kept in sync by scripts/build.mjs)
   cron/                Worker entry + wrangler.toml
   migrations/          D1 SQL
-  scripts/build.mjs    public/ + shared/ -> dist/ (copy, no symlinks)
+  scripts/build.mjs    public/ + shared/ (core, reminder, art, design) -> dist/ (copy, no symlinks); fills <!--HEAD-->, <!--HEADER-->, <!--FOOTER-->, <!--DOWNLOADS--> and <!--ART:clouds|plane|calendar-check--> from partials and shared/art
   test/                node --test (real SQL via node:sqlite, mocked fetch)
 ```
 

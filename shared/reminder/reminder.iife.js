@@ -193,12 +193,12 @@ var CSS = [
   '.stage{--paper:#F3EFE6;--surface:#FBF9F4;--ink:#171512;--ink2:#3A3631;--muted:#7A746A;--line:rgba(23,21,18,.12);--line2:rgba(23,21,18,.22);--accent:#D4512A;--soft:rgba(212,81,42,.10);--onink:#F3EFE6;',
   '--serif:"MPZ Serif","Instrument Serif",Georgia,"Times New Roman",serif;--mono:"MPZ Mono","Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;',
   '--sans:-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;--ease:cubic-bezier(.16,1,.3,1);',
-  '--pw:clamp(120px,19cqw,240px);--t:clamp(20px,2.3cqw,32px);--shadow:drop-shadow(0 34px 34px rgba(23,21,18,.22)) drop-shadow(0 6px 10px rgba(23,21,18,.10));',
+  '--pw:clamp(120px,19cqw,240px);--t:clamp(20px,2.3cqw,32px);--shadow:0 30px 80px -20px rgba(23,21,18,.45),0 10px 24px -14px rgba(23,21,18,.28);',
   'position:fixed;inset:0;container-type:size;pointer-events:none;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;',
   'text-align:left;line-height:1.3;font-size:16px;letter-spacing:0;text-transform:none;font-weight:400;font-style:normal;font-variant-numeric:tabular-nums}',
   '.stage.in-box{position:absolute}',
   '.stage.dark{--paper:#13120F;--surface:#1C1A17;--ink:#F1EDE4;--ink2:#CFC9BE;--muted:#958F84;--line:rgba(241,237,228,.12);--line2:rgba(241,237,228,.22);--accent:#EE6A40;--soft:rgba(238,106,64,.14);--onink:#13120F;',
-  '--shadow:drop-shadow(0 34px 34px rgba(0,0,0,.55)) drop-shadow(0 6px 10px rgba(0,0,0,.35))}',
+  '--shadow:0 30px 90px -20px rgba(0,0,0,.85),0 10px 24px -14px rgba(0,0,0,.6)}',
   /* takeover veil, grain and faint departures board */
   '.veil{position:absolute;inset:0;background:var(--paper);opacity:0}',
   '.stage.takeover{pointer-events:auto}',
@@ -231,7 +231,8 @@ var CSS = [
   /* the pass */
   '.wrap{position:absolute;inset:0;display:grid;place-items:center;padding:16px;pointer-events:none}',
   '.pass{pointer-events:auto;position:relative;width:min(560px,92cqw);max-height:100%;opacity:0}',
-  '.stage.flyby .pass{filter:var(--shadow)}',
+  '.shd{position:absolute;inset:0;border-radius:18px;pointer-events:none}',
+  '.stage.flyby .shd{box-shadow:var(--shadow)}',
   '.top,.bot{position:relative;background:var(--surface);border:1px solid var(--line)}',
   '.top{border-bottom:0;border-radius:18px 18px 0 0;padding:28px 32px 24px;',
   '-webkit-mask-image:radial-gradient(circle 9px at 0 100%,#0000 8.4px,#000 9px),radial-gradient(circle 9px at 100% 100%,#0000 8.4px,#000 9px);-webkit-mask-composite:source-in;',
@@ -327,7 +328,7 @@ function boardRows(evt, upcoming, startMs) {
 }
 function fmtClockTime(ms) {
   if (isNaN(ms)) return '--:--';
-  try { return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); } catch (e) { return '--:--'; }
+  try { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return '--:--'; }
 }
 
 /**
