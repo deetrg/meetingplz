@@ -227,7 +227,7 @@
       '<div class="so__cal">' + art('calendar-check') + '</div>' +
       '<h1 class="so__h">One more <em>step.</em></h1>' +
       '<p class="so__p">Tick <b>\u201CSee your calendars\u201D</b> on Google\'s screen so MeetingPlz can remind you before each meeting.</p>' +
-      '<a class="gbtn" id="consent-retry" href="/api/auth/google/start?client=web&amp;scope=calendar">' + G_SVG + '<span>Continue</span></a>' +
+      '<a class="gbtn" id="consent-retry" href="/api/auth/google/start?client=web&amp;scope=calendar">' + G_SVG + '<span>Continue with Google</span></a>' +
       '<p class="so__legal"><a href="/privacy">Privacy</a><i>\u00B7</i><a href="/terms">Terms</a></p>' +
       '</div>';
   }

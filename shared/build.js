@@ -89,14 +89,14 @@ const cloudsSvg =
 fs.writeFileSync(path.join(dir, 'art/clouds.svg'), cloudsSvg);
 
 // App icon: plane (viewBox 240x100) centred on a 1024 square, tilted up a little. Ink square + paper line art + accent tail stripe.
-function icon({ stroke, detail = true, tilt = -9, scale = 3.9, bg = 'ink', size = 1024 }) {
+function icon({ stroke, detail = true, tilt = -9, scale = 3.6, bg = 'ink', size = 1024 }) {
   const line = bg === 'ink' ? PAPER : INK;
   const fill = bg === 'ink' ? INK : PAPER;
   const accent = bg === 'ink' ? ACCENT_DARK : ACCENT;
   let inner = planeInner.replace(/fill="#FBF9F4"/g, `fill="${fill}"`).replace(/fill="#D4512A"/g, `fill="${accent}"`);
   if (detail) inner = inner.replace(/(<path d="M56 53[^>]*?)stroke-width="4.2"/, `$1stroke-width="${(stroke * 2.3).toFixed(2)}"`);
   else inner = inner.replace(/<path d="M56 53[^>]*\/>/, '').replace(/<path d="M186 44[^>]*\/>/, '').replace(/<path d="M120 72.5[^>]*\/>/, '');
-  const tx = 512 - 120 * scale, ty = 512 - 52 * scale;
+  const tx = 512 - 122.5 * scale, ty = 512 - 50 * scale;
   const border = bg === 'ink' ? '' : `<rect x="12" y="12" width="1000" height="1000" rx="228" fill="none" stroke="${INK}" stroke-width="10"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 1024 1024">\n` +
     `<rect width="1024" height="1024" rx="232" fill="${fill}"/>${border}\n` +
@@ -104,7 +104,7 @@ function icon({ stroke, detail = true, tilt = -9, scale = 3.9, bg = 'ink', size 
 }
 
 const variants = {
-  1024: { stroke: 3.7 }, 512: { stroke: 3.9 }, 192: { stroke: 4.8 }, 180: { stroke: 5 }, 32: { stroke: 7, detail: false, scale: 4 }
+  1024: { stroke: 3.7 }, 512: { stroke: 3.9 }, 192: { stroke: 4.8 }, 180: { stroke: 5 }, 32: { stroke: 7, detail: false, scale: 3.8 }
 };
 fs.writeFileSync(path.join(dir, 'art/icon.svg'), icon({ stroke: 3.7 }));
 fs.writeFileSync(path.join(dir, 'art/icon-paper.svg'), icon({ stroke: 3.7, bg: 'paper' }));

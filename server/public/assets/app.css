@@ -24,7 +24,7 @@ body.app{min-height:100vh}
 .so__legal{margin-top:20px;font:400 12px var(--mono);color:var(--muted)}
 .so__legal a{color:var(--muted);text-decoration:none}.so__legal a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .so__legal i{font-style:normal;margin:0 8px;opacity:.6}
-.so__cal{width:96px;color:var(--ink);margin-bottom:28px}.so__cal svg{display:block;width:100%;height:auto}
+.so__cal{width:120px;color:var(--ink);margin-bottom:28px}.so__cal svg{display:block;width:100%;height:auto}
 .err{margin-top:22px;width:100%;padding:12px 14px;text-align:left;border:1px solid var(--line-strong);border-left:2px solid var(--accent);border-radius:var(--r-chip);font:400 13px/1.45 var(--sans);color:var(--ink)}
 
 /* ---- header ---- */
