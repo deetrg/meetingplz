@@ -38,4 +38,11 @@ $proc2 = Start-Process -FilePath $exe -PassThru
 Start-Sleep -Seconds 8; Shot 'win-settings.png'
 Write-Host "Settings run alive: $(-not $proc2.HasExited)"
 Stop-Process -Name MeetingPlz -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+# same window scrolled to the bottom (QA mode: any freeze value scrolls the settings page)
+$env:MEETINGPLZ_FREEZE_MS = '1'
+$proc3 = Start-Process -FilePath $exe -PassThru
+Start-Sleep -Seconds 8; Shot 'win-settings-bottom.png'
+Remove-Item Env:MEETINGPLZ_FREEZE_MS -ErrorAction SilentlyContinue
+Stop-Process -Name MeetingPlz -Force -ErrorAction SilentlyContinue
 Write-Host '--- settings log'; if (Test-Path $log) { Get-Content $log | Write-Host; Copy-Item $log (Join-Path $OutDir 'debug-settings.log') }

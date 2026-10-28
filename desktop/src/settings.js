@@ -1,93 +1,176 @@
+/* Settings window (design v2): departures board, rows + segmented controls, passport-stamp accounts. */
 (function () {
   var MP = window.MP;
   var Core = window.MeetingPlzCore;
+  var ART = window.MPZ_ART || {};
   var app = document.getElementById('app');
   var state = { signedIn: false, next: [], settings: Core.normalizeSettings({}) };
   var autostart = false;
   var signingIn = false;
   var linking = false;
   var acctErr = '';
+  var api = '';
+  var qaScroll = false; // QA only: MEETINGPLZ_FREEZE_MS set -> scroll to the bottom so CI screenshots show the lower half
 
-  var PLANE = '<svg class="art" viewBox="0 0 200 110" aria-hidden="true"><path d="M22 62c0-8 12-14 30-14h92c24 0 40 6 40 13s-16 13-40 13H50c-18 0-28-4-28-12z"/><path d="M52 48 40 22h18l30 26"/><path d="M92 74l26 26h14l-18-26"/><path d="M92 48l26-26h14l-18 26"/><path d="M150 56h.01M132 56h.01M114 56h.01M96 56h.01M78 56h.01"/></svg>';
+  var LEADS = [[30, '30 sec'], [60, '1 min'], [120, '2 min'], [180, '3 min'], [300, '5 min'], [600, '10 min']];
+  var STYLES = [['flyby', 'Fly-by'], ['takeover', 'Takeover']];
+  var ALARMS = [['jingle', 'Jingle'], ['buzz', 'Buzz'], ['bell', 'Bell'], ['beep', 'Beep'], ['off', 'Off']];
+  var ONOFF = [[true, 'On'], [false, 'Off']];
+  var WORDMARK = '<span class="wordmark" aria-label="MeetingPlz">Meeting<i>Plz</i><span class="wm-dot"></span></span>';
+  var G_SVG = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function fmt(ms) { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
-  function leadLabel(s) { return s < 60 ? s + ' seconds' : (s / 60) + (s === 60 ? ' minute' : ' minutes'); }
-  var ALARM_NAMES = { jingle: 'Jingle', buzz: 'Buzz', bell: 'Bell', beep: 'Beep', off: 'Off' };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  var timeFmt = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
+  function dayLabel(ms) {
+    var d = new Date(ms), t = new Date();
+    if (d.toDateString() === t.toDateString()) return 'Today';
+    var tm = new Date(t.getTime() + 86400000);
+    return d.toDateString() === tm.toDateString() ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short' });
+  }
+
+  function seg(group, opts, cur, label) {
+    return '<div class="seg" role="group" aria-label="' + esc(label) + '">' + opts.map(function (o) {
+      return '<button type="button" data-group="' + group + '" data-value="' + o[0] + '" aria-pressed="' + (String(cur) === String(o[0])) + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function row(label, small, control, stack) {
+    return '<li class="row' + (stack ? ' row--stack' : '') + '"><div class="row__k">' + label + (small ? '<small>' + small + '</small>' : '') + '</div>' + control + '</li>';
+  }
+
+  function statusChip(e) {
+    var ms = Core.toMs(e.start) - Date.now(), lead = (state.settings.leadSeconds || 120) * 1000;
+    if (ms <= 0) return '<span class="chip chip--final">Final call</span>';
+    if (ms <= lead) return '<span class="chip chip--boarding">Boarding</span>';
+    return '<span class="chip">On time</span>';
+  }
+
+  function boardBlock() {
+    var all = state.next || [];
+    if (!all.length) {
+      return '<div class="empty">' + (ART.clouds || '') + '<p class="empty__t">Clear skies.</p><p class="empty__s">No meetings in the next 24 hours.</p></div>';
+    }
+    var list = all.slice(0, 3);
+    var html = '<ol class="brd">' + list.map(function (e, i) {
+      var st = Core.toMs(e.start);
+      var meta = [Core.withText(e.attendees), e.link ? Core.gateLabel(e.link) : ''].filter(Boolean).join(' \u00B7 ');
+      return '<li class="brd__row' + (i === 0 ? ' is-next' : '') + '"><span class="brd__t">' + esc(timeFmt.format(st)) + '<small>' + esc(dayLabel(st)) + '</small></span>' +
+        '<span class="brd__n"><span>' + esc(e.title || 'Meeting') + '</span>' + (meta ? '<small>' + esc(meta) + '</small>' : '') + '</span>' + statusChip(e) + '</li>';
+    }).join('') + '</ol>';
+    if (all.length > 3) html += '<p class="brd__more">+' + (all.length - 3) + ' more</p>';
+    return html;
+  }
 
   function accountsBlock() {
     var list = (state.me && state.me.accounts) || [];
-    var rows = list.map(function (a) {
-      var tag = a.error ? ' <span class="tag">sign in again</span>' : a.primary ? ' <span class="tag">main</span>' : '';
-      var rm = list.length > 1 ? '<button class="btn ghost small" data-remove="' + esc(a.id) + '">Remove</button>' : '';
-      return '<div class="acct"><span class="em">' + esc(a.email) + tag + '</span>' + rm + '</div>';
+    var stamps = list.map(function (a) {
+      var tag = a.error ? '<span class="stamp__tag is-warn">Sign in again</span>' : a.primary ? '<span class="stamp__tag">Main</span>' : '';
+      var rm = list.length > 1 ? '<button class="stamp__x" type="button" aria-label="Remove ' + esc(a.email) + '" data-remove="' + esc(a.id) + '">\u00D7</button>' : '';
+      return '<span class="stamp"><span class="stamp__em">' + esc(a.email) + '</span>' + tag + rm + '</span>';
     }).join('');
-    if (!rows) rows = '<div class="acct"><span class="em">' + esc((state.me && state.me.email) || '') + '</span></div>';
-    return '<h2>Accounts</h2>' + rows +
-      '<div class="stack" style="margin-top:10px"><button class="btn ghost" id="addacct">' + (linking ? 'Waiting for your browser\u2026' : '+ Add another Google account') + '</button>' + (acctErr ? '<p class="errnote">' + esc(acctErr) + '</p>' : '') + '</div>';
+    if (!stamps) stamps = '<span class="stamp"><span class="stamp__em">' + esc((state.me && state.me.email) || '') + '</span></span>';
+    return '<div class="stamps">' + stamps + '</div>' +
+      '<div class="acct-act"><button class="btn btn--line btn--sm" id="addacct" type="button"' + (linking ? ' disabled' : '') + '>' + (linking ? 'Waiting for your browser\u2026' : 'Add another Google account') + '</button></div>' +
+      (acctErr ? '<p class="err" role="alert">' + esc(acctErr) + '</p>' : '') +
+      '<p class="note">Meetings from every account get a reminder.</p>';
+  }
+
+  function footer(signedIn) {
+    return '<div class="foot"><span><button class="link-btn" type="button" data-open="/privacy">Privacy</button><i>\u00B7</i><button class="link-btn" type="button" data-open="/terms">Terms</button></span>' +
+      (signedIn ? '<button class="link-btn" type="button" id="signout">Sign out</button>' : '') + '</div>';
+  }
+
+  function renderSignedOut() {
+    app.innerHTML =
+      '<div class="so rise">' +
+      '<div class="so__art">' + (ART.plane || '') + '</div>' + WORDMARK +
+      '<h1 class="so__h">Your meetings, <em>on time.</em></h1>' +
+      '<p class="so__p">A reminder with one big Join button, before every meeting.</p>' +
+      '<button class="gbtn" id="signin" type="button"' + (signingIn ? ' aria-busy="true"' : '') + '>' + G_SVG + '<span>' + (signingIn ? 'Waiting for your browser\u2026' : 'Continue with Google') + '</span></button>' +
+      '<p class="so__note">On Google\u2019s screen, tick the calendar box so MeetingPlz can see your meetings.</p>' +
+      '<div class="so__launch"><ul class="rows rows--compact">' + row('Launch at login', '', seg('autostart', ONOFF, autostart, 'Launch at login')) + '</ul></div>' +
+      '</div>';
+  }
+
+  function renderApp() {
+    var s = state.settings;
+    app.innerHTML =
+      '<div class="shell">' +
+      '<header class="bar">' + WORDMARK + '</header>' +
+      '<section class="sec"><div class="sec__head"><span class="lab">Departures \u00B7 next 24 hours</span><h1 class="sec__h">Next up</h1></div>' +
+      '<div id="board">' + boardBlock() + '</div>' +
+      '<div class="cta"><button class="btn btn--primary btn--compact btn--block" id="test" type="button"><span>Test it</span><span class="arr" aria-hidden="true">\u2192</span></button></div></section>' +
+      '<section class="sec"><div class="sec__head"><h2 class="sec__h sec__h--s">Settings</h2></div><ul class="rows rows--compact">' +
+      row('Remind me', '', seg('leadSeconds', LEADS, s.leadSeconds, 'Remind me'), true) +
+      row('Style', '', seg('style', STYLES, s.style, 'Style')) +
+      row('Alarm', '', seg('alarm', ALARMS, s.alarm, 'Alarm'), true) +
+      row('Only real meetings', '', seg('meetingsOnly', ONOFF, s.meetingsOnly, 'Only real meetings')) +
+      row('Launch at login', '', seg('autostart', ONOFF, autostart, 'Launch at login')) +
+      '</ul></section>' +
+      '<section class="sec"><div class="sec__head"><h2 class="sec__h sec__h--s">Accounts</h2></div><div id="accounts">' + accountsBlock() + '</div></section>' +
+      footer(true) + '</div>';
+    var so = document.getElementById('signout');
+    if (so) so.onclick = function () { MP.logout().then(function () { return MP.invoke('sign_out'); }); };
   }
 
   function render() {
-    if (!state.signedIn) {
-      app.innerHTML = PLANE + '<h1>MeetingPlz.</h1><p>A reminder you can\u2019t miss, two minutes before every meeting.</p>' +
-        '<div class="stack"><button class="btn" id="signin">' + (signingIn ? 'Waiting for your browser\u2026' : 'Continue with Google') + '</button></div>' +
-        '<h2>Launch</h2>' + autostartRow();
-      document.getElementById('signin').onclick = signIn;
-      bindAutostart();
+    if (state.signedIn) renderApp(); else renderSignedOut();
+    var si = document.getElementById('signin');
+    if (si) si.onclick = signIn;
+    if (qaScroll && state.signedIn) setTimeout(function () { window.scrollTo(0, 100000); }, 400);
+  }
+  function renderParts() {
+    var b = document.getElementById('board'); if (b) b.innerHTML = boardBlock();
+    var a = document.getElementById('accounts'); if (a) a.innerHTML = accountsBlock();
+  }
+
+  function syncSeg() {
+    document.querySelectorAll('.seg button[data-group]').forEach(function (b) {
+      var g = b.dataset.group;
+      var cur = g === 'autostart' ? autostart : state.settings[g];
+      b.setAttribute('aria-pressed', String(String(cur) === b.dataset.value));
+    });
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest('button');
+    if (!t) return;
+    if (t.dataset.group && t.closest('.seg')) {
+      var g = t.dataset.group, v = t.dataset.value;
+      if (g === 'autostart') {
+        MP.invoke('set_autostart', { enabled: v === 'true' }).then(function (r) { autostart = !!r; syncSeg(); });
+        autostart = v === 'true'; syncSeg();
+        return;
+      }
+      var val = g === 'leadSeconds' ? Number(v) : g === 'meetingsOnly' ? v === 'true' : v;
+      var body = {}; body[g] = val;
+      state.settings = Object.assign({}, state.settings, body);
+      syncSeg();
+      if (g === 'alarm' && val !== 'off' && window.MeetingPlzReminder && window.MeetingPlzReminder.playAlarm) { try { window.MeetingPlzReminder.playAlarm(val); } catch (e) {} }
+      if (g === 'leadSeconds') renderParts();
+      save(body);
       return;
     }
-    var s = state.settings;
-    var list = (state.next || []).map(function (e) {
-      var st = Core.toMs(e.start);
-      return '<div class="meeting"><b>' + esc(e.title || 'Meeting') + '</b><span>' + fmt(st) + (e.attendees ? ' \u00b7 ' + esc(e.attendees) : '') + '</span>' + (e.calendar ? '<span class="cal">' + esc(e.calendar) + '</span>' : '') + '</div>';
-    }).join('') || '<div class="empty">No meetings coming up.</div>';
-    app.innerHTML =
-      '<div class="who"><h1 style="font-size:26px">MeetingPlz.</h1><button class="btn ghost small" id="signout">Sign out</button></div>' +
-      accountsBlock() +
-      '<h2>Next up</h2>' + list +
-      '<div class="stack"><button class="btn" id="test">Test it</button></div>' +
-      '<h2>Reminder</h2>' +
-      '<div class="row"><label>Remind me</label><select id="lead">' + Core.LEAD_OPTIONS.map(function (v) { return '<option value="' + v + '"' + (v === s.leadSeconds ? ' selected' : '') + '>' + leadLabel(v) + ' before</option>'; }).join('') + '</select></div>' +
-      '<div class="row"><label>Style</label><div class="seg" id="style"><button data-v="flyby" class="' + (s.style === 'flyby' ? 'on' : '') + '">Flyby</button><button data-v="takeover" class="' + (s.style === 'takeover' ? 'on' : '') + '">Takeover</button></div></div>' +
-      '<div class="row"><label>Alarm</label><select id="alarm">' + Core.ALARM_OPTIONS.map(function (v) { return '<option value="' + v + '"' + (v === s.alarm ? ' selected' : '') + '>' + ALARM_NAMES[v] + '</option>'; }).join('') + '</select></div>' +
-      autostartRow();
-    document.getElementById('signout').onclick = function () { MP.logout().then(function () { return MP.invoke('sign_out'); }); };
-    document.getElementById('addacct').onclick = addAccount;
-    document.querySelectorAll('[data-remove]').forEach(function (b) {
-      b.onclick = function () { removeAccount(b.dataset.remove); };
-    });
-    document.getElementById('test').onclick = function () { MP.emit('test-it'); };
-    document.getElementById('lead').onchange = function (e) { save({ leadSeconds: Number(e.target.value) }); };
-    document.getElementById('alarm').onchange = function (e) { save({ alarm: e.target.value }); };
-    document.querySelectorAll('#style button').forEach(function (b) { b.onclick = function () { save({ style: b.dataset.v }); }; });
-    bindAutostart();
-  }
-
-  function autostartRow() {
-    return '<div class="row"><label for="auto">Launch at login</label><input type="checkbox" class="switch" id="auto"' + (autostart ? ' checked' : '') + '></div>';
-  }
-  function bindAutostart() {
-    var el = document.getElementById('auto');
-    if (el) el.onchange = async function () { autostart = await MP.invoke('set_autostart', { enabled: el.checked }); };
-  }
+    if (t.dataset.remove) { removeAccount(t.dataset.remove); return; }
+    if (t.dataset.open) { MP.invoke('open_url', { url: api + t.dataset.open }); return; }
+    if (t.id === 'addacct') addAccount();
+    else if (t.id === 'test') MP.emit('test-it');
+  });
 
   async function save(partial) {
-    state.settings = Object.assign({}, state.settings, partial);
-    render();
     try { await MP.putSettings(partial); } catch (e) {}
     MP.emit('refresh');
   }
 
   async function addAccount() {
-    acctErr = ''; linking = true; render();
-    try { await MP.linkAccount(); } catch (e) { linking = false; acctErr = 'Could not start that. Try again.'; render(); return; }
+    acctErr = ''; linking = true; renderParts();
+    try { await MP.linkAccount(); } catch (e) { linking = false; acctErr = 'Could not start that. Try again.'; renderParts(); return; }
     // the system browser finishes the flow; the app is told through 'auth-changed' (-> refresh -> state-changed)
-    setTimeout(function () { if (linking) { linking = false; render(); } }, 120000);
+    setTimeout(function () { if (linking) { linking = false; renderParts(); } }, 120000);
   }
 
   async function removeAccount(id) {
     acctErr = '';
-    try { await MP.removeAccount(id); } catch (e) { acctErr = 'Could not remove that account.'; render(); return; }
+    try { await MP.removeAccount(id); } catch (e) { acctErr = 'Could not remove that account.'; renderParts(); return; }
     MP.emit('refresh');
   }
 
@@ -107,17 +190,21 @@
   }
 
   async function init() {
+    try { var c = await MP.cfg(); api = (c && c.api) || ''; qaScroll = !!c && typeof c.freezeMs === 'number'; } catch (e) {}
+    // public pages live on the custom domain (pages.dev 301-redirects there)
+    if (!api || /pages\.dev/.test(api)) api = 'https://meetingplz.nonolingo.com';
     autostart = await MP.invoke('get_autostart');
     MP.listen('state-changed', function (e) { apply(e.payload); });
     MP.listen('link-result', function (e) {
       var r = e.payload || {};
       linking = false;
       acctErr = r.ok ? '' : (r.status === 409 ? 'That Google account already belongs to another MeetingPlz account.' : 'Could not add that account. Try again.');
-      render();
+      renderParts();
     });
     var cur = await MP.invoke('get_state');
     if (cur) apply(cur); else render();
     MP.emit('refresh');
+    setInterval(function () { if (state.signedIn) { var b = document.getElementById('board'); if (b) b.innerHTML = boardBlock(); } }, 10000);
   }
   window.addEventListener('DOMContentLoaded', init);
 })();

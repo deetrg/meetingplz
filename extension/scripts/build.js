@@ -21,6 +21,16 @@ function pick(name, sharedPath, stubPath) {
 }
 pick('core.js', path.join(shared, 'core.js'), path.join(root, 'stubs/core.js'));
 pick('reminder.iife.js', path.join(shared, 'reminder/reminder.iife.js'), path.join(root, 'stubs/reminder.iife.js'));
+// design v2: tokens + components + bundled woff2 fonts, and line art inlined into art.js (window.MPZ_ART)
+const design = path.join(shared, 'design');
+if (fs.existsSync(design)) {
+  const dd = path.join(out, 'design');
+  fs.mkdirSync(path.join(dd, 'fonts'), { recursive: true });
+  ['tokens.css', 'components.css'].forEach((f) => { fs.copyFileSync(path.join(design, f), path.join(dd, f)); used.push('design/' + f + ': shared'); });
+  fs.readdirSync(path.join(design, 'fonts')).filter((n) => /\.(woff2|txt)$/.test(n)).forEach((f) => fs.copyFileSync(path.join(design, 'fonts', f), path.join(dd, 'fonts', f)));
+} else {
+  throw new Error('shared/design missing: the popup needs design v2 tokens');
+}
 // art: stubs first, then shared svgs override
 fs.mkdirSync(path.join(out, 'art'), { recursive: true });
 fs.cpSync(path.join(root, 'stubs/art'), path.join(out, 'art'), { recursive: true });
@@ -30,7 +40,14 @@ if (fs.existsSync(sharedArt)) {
     fs.copyFileSync(path.join(sharedArt, f), path.join(out, 'art', f)); used.push('art/' + f + ': shared');
   });
 }
-// popup uses art/plane.svg: if shared names it differently, keep the stub as fallback (copied above)
+const MPZ_ART = {};
+fs.readdirSync(path.join(out, 'art')).filter((f) => f.endsWith('.svg')).forEach((f) => {
+  MPZ_ART[f.replace(/\.svg$/, '')] = fs.readFileSync(path.join(out, 'art', f), 'utf8').trim()
+    .replace(/fill="#FBF9F4"/g, 'style="fill:var(--surface)"').replace(/fill="#D4512A"/g, 'style="fill:var(--accent)"')
+    .replace(/stroke="#171512"/g, 'stroke="currentColor"').replace('<svg ', '<svg aria-hidden="true" focusable="false" ');
+});
+fs.writeFileSync(path.join(out, 'art.js'), 'window.MPZ_ART = ' + JSON.stringify(MPZ_ART) + ';\n');
+// popup uses art.js (inlined svgs); art/plane.svg: if shared names it differently, keep the stub as fallback (copied above)
 // icons: src/icons (resized from shared/art/icon-1024.png with sips)
 
 const manifest = JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8'));

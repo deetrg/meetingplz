@@ -137,13 +137,32 @@ jobs:
           cp "$LOG" smoke/debug-freeze.log 2>/dev/null || true
           pkill -f "MeetingPlz.app/Contents/MacOS" || true
           sleep 2
-          # 2) signed-in settings window against the real API
+          # 2) signed-in settings window against the real API (light mode), top and scrolled to the bottom
+          defaults delete -g AppleInterfaceStyle 2>/dev/null || true
           rm -f "$LOG"
           MEETINGPLZ_TOKEN="$QA_TOKEN" MEETINGPLZ_OPEN_SETTINGS=1 MEETINGPLZ_DEBUG=1 "$BIN" > smoke/app-settings.log 2>&1 &
           sleep 8
           screencapture -x smoke/mac-settings.png
           cp "$LOG" smoke/debug-settings.log 2>/dev/null || true
           pkill -f "MeetingPlz.app/Contents/MacOS" || true
+          sleep 2
+          MEETINGPLZ_TOKEN="$QA_TOKEN" MEETINGPLZ_OPEN_SETTINGS=1 MEETINGPLZ_FREEZE_MS=1 "$BIN" > smoke/app-settings-bottom.log 2>&1 &
+          sleep 8
+          screencapture -x smoke/mac-settings-bottom.png
+          pkill -f "MeetingPlz.app/Contents/MacOS" || true
+          sleep 2
+          # 3) dark appearance: settings window + overlay pass
+          defaults write -g AppleInterfaceStyle Dark
+          MEETINGPLZ_TOKEN="$QA_TOKEN" MEETINGPLZ_OPEN_SETTINGS=1 "$BIN" > smoke/app-settings-dark.log 2>&1 &
+          sleep 8
+          screencapture -x smoke/mac-settings-dark.png
+          pkill -f "MeetingPlz.app/Contents/MacOS" || true
+          sleep 2
+          MEETINGPLZ_DEMO=1 MEETINGPLZ_FORCE_MOTION=1 "$BIN" > smoke/app-dark.log 2>&1 &
+          sleep 12
+          screencapture -x smoke/mac-pass-dark.png
+          pkill -f "MeetingPlz.app/Contents/MacOS" || true
+          defaults delete -g AppleInterfaceStyle 2>/dev/null || true
           echo "--- demo log"; cat smoke/debug-demo.log 2>/dev/null || true
           echo "--- freeze log"; cat smoke/debug-freeze.log 2>/dev/null || true
           echo "--- settings log"; cat smoke/debug-settings.log 2>/dev/null || true

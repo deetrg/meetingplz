@@ -2,47 +2,48 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=360">
+<meta name="color-scheme" content="light dark">
 <title>MeetingPlz</title>
+<link rel="stylesheet" href="design/tokens.css">
+<link rel="stylesheet" href="design/components.css">
 <link rel="stylesheet" href="popup.css">
 </head>
-<body>
+<body class="grain popup">
 <main id="out" hidden>
-  <img class="plane" src="art/plane.svg" alt="">
-  <h1>MeetingPlz.</h1>
-  <p class="sub">Two minutes before a meeting, one big Join button.</p>
-  <button id="signin" class="btn primary">Continue with Google</button>
+  <div class="so__art" id="so-art"></div>
+  <span class="wordmark" aria-label="MeetingPlz">Meeting<i>Plz</i><span class="wm-dot"></span></span>
+  <h1 class="so__h">Your meetings, <em>on time.</em></h1>
+  <p class="so__p">A reminder with one big Join button, before every meeting.</p>
+  <button id="signin" class="gbtn" type="button"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></button>
+  <p class="so__note">On Google's screen, tick the calendar box so MeetingPlz can see your meetings.</p>
   <p id="err" class="err" hidden></p>
 </main>
 <main id="in" hidden>
-  <header>
-    <h1 class="sm">MeetingPlz.</h1>
-    <span id="who" class="muted"></span>
+  <header class="bar">
+    <span class="wordmark" aria-label="MeetingPlz">Meeting<i>Plz</i><span class="wm-dot"></span></span>
+    <span id="who" class="who"></span>
   </header>
-  <section class="next" id="next"></section>
-  <button id="test" class="btn primary">Test it</button>
-  <section class="settings">
-    <div class="row"><span>Style</span>
-      <div class="seg" id="style"><button data-v="flyby">Flyby</button><button data-v="takeover">Takeover</button></div></div>
-    <div class="row"><span>Remind me</span>
-      <select id="lead">
-        <option value="30">30 seconds before</option><option value="60">1 minute before</option><option value="120">2 minutes before</option>
-        <option value="180">3 minutes before</option><option value="300">5 minutes before</option><option value="600">10 minutes before</option>
-      </select></div>
-    <div class="row"><span>Alarm</span>
-      <select id="alarm"><option value="jingle">Jingle</option><option value="buzz">Buzz</option><option value="bell">Bell</option><option value="beep">Beep</option><option value="off">Off</option></select></div>
-  </section>
+  <section id="next"></section>
+  <button id="test" class="btn btn--primary btn--compact btn--block" type="button"><span class="lbl">Test it</span><span class="arr" aria-hidden="true">&rarr;</span></button>
+  <ul class="rows rows--compact settings" id="settings">
+    <li class="row row--stack"><div class="row__k">Remind me</div><div class="seg" id="lead" role="group" aria-label="Remind me"></div></li>
+    <li class="row"><div class="row__k">Style</div><div class="seg" id="style" role="group" aria-label="Style"></div></li>
+    <li class="row row--stack"><div class="row__k">Alarm</div><div class="seg" id="alarm" role="group" aria-label="Alarm"></div></li>
+  </ul>
   <section class="accounts">
-    <div class="eyebrow">Accounts</div>
-    <div id="accounts"></div>
-    <button id="addacct" class="btn outline">+ Add another Google account</button>
+    <span class="lab">Accounts</span>
+    <div id="accounts" class="stamps"></div>
+    <button id="addacct" class="btn btn--line btn--sm" type="button">Add another Google account</button>
     <p id="acct-err" class="err" hidden></p>
   </section>
-  <footer>
-    <a id="webapp" href="https://meetingplz.pages.dev/app" target="_blank" rel="noopener">Open web app</a>
-    <button id="signout" class="link">Sign out</button>
+  <footer class="foot">
+    <span><a id="webapp" href="https://meetingplz.nonolingo.com/app" target="_blank" rel="noopener">Web app</a><i>&middot;</i><a id="privacy" href="https://meetingplz.nonolingo.com/privacy" target="_blank" rel="noopener">Privacy</a><i>&middot;</i><a id="terms" href="https://meetingplz.nonolingo.com/terms" target="_blank" rel="noopener">Terms</a></span>
+    <button id="signout" class="link-btn" type="button">Sign out</button>
   </footer>
 </main>
+<script src="art.js"></script>
+<script src="core.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

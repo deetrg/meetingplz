@@ -8,7 +8,7 @@ const EXT = path.join(ROOT, 'extension', 'dist', 'unpacked');
 const OUT = process.env.QA_OUT || path.join(ROOT, 'qa', 'out');
 const CHROME = process.env.CHROME_PATH;
 const TOKEN = process.env.MP_QA_TOKEN;
-const BASE = process.env.MP_BASE || 'https://meetingplz.pages.dev';
+const BASE = process.env.MP_BASE || 'https://meetingplz.nonolingo.com';
 const EXT_ID = 'afkodmbjfhhmcmihogbkdpknlogjhpfp';
 if (!CHROME) throw new Error('CHROME_PATH not set');
 if (!TOKEN) throw new Error('MP_QA_TOKEN not set');
@@ -108,7 +108,7 @@ await step('inject token into chrome.storage.local', async () => {
 
 await step('popup signed in', async () => {
   popup = await browser.newPage();
-  await popup.setViewport({ width: 380, height: 640, deviceScaleFactor: 2 });
+  await popup.setViewport({ width: 360, height: 800, deviceScaleFactor: 2 });
   await popup.goto(`chrome-extension://${EXT_ID}/popup.html`, { waitUntil: 'load' });
   await popup.waitForFunction(() => !document.getElementById('in').hidden || !document.getElementById('out').hidden, { timeout: 15000 });
   await sleep(800);

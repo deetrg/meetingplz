@@ -54,7 +54,7 @@
     async function setBadge(text) {
       try {
         await chrome.action.setBadgeText({ text: text });
-        if (text) await chrome.action.setBadgeBackgroundColor({ color: '#111111' });
+        if (text) await chrome.action.setBadgeBackgroundColor({ color: '#171512' });
         if (text && chrome.action.setBadgeTextColor) await chrome.action.setBadgeTextColor({ color: '#FFFFFF' });
       } catch (e) {}
     }
@@ -154,7 +154,7 @@
         var opts = {
           type: 'basic',
           iconUrl: 'icons/icon128.png',
-          title: 'Join the meeting.',
+          title: typeof core.headline === 'function' ? core.headline(core.toMs(ev.start) - now()) : 'Join the meeting.',
           message: (ev.title || 'Your meeting') + ' starts ' + core.inText(core.toMs(ev.start) - now()).replace(/^in /, 'in '),
           priority: 2,
           requireInteraction: true
