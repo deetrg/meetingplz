@@ -62,7 +62,6 @@ struct ReminderOverlay: View {
                 } else {
                     Color.black.opacity(visible ? (scheme == .dark ? 0.5 : 0.32) : 0).ignoresSafeArea()
                 }
-                plane(width: geo.size.width, height: geo.size.height)
                 pass
                     .padding(.horizontal, 16)
                     .frame(maxWidth: 520)
@@ -71,6 +70,8 @@ struct ReminderOverlay: View {
                     .opacity(visible ? 1 : 0)
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .overlay(alignment: .topLeading) { plane(width: geo.size.width, height: geo.size.height) }
+            .clipped()
         }
         .onAppear {
             guard !reduceMotion else { showCard = true; return }
@@ -124,16 +125,18 @@ struct ReminderOverlay: View {
         TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
             let ms = e.startDate.timeIntervalSince(ctx.date) * 1000
             let started = ms <= 0
-            ZStack(alignment: .topLeading) {
+            VStack(spacing: 0) {
+                topPart(started: started)
+                    .background(GeometryReader { g in Color.clear.preference(key: TopHeightKey.self, value: g.size.height) })
+                bottomPart(ms: ms, started: started)
+            }
+            .background(alignment: .topLeading) {
                 PassShape(notchY: topHeight)
                     .fill(MP.surface)
                     .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.28), radius: 28, x: 0, y: 18)
-                PassShape(notchY: topHeight).stroke(MP.line, lineWidth: 1)
-                VStack(spacing: 0) {
-                    topPart(started: started)
-                        .background(GeometryReader { g in Color.clear.preference(key: TopHeightKey.self, value: g.size.height) })
-                    bottomPart(ms: ms, started: started)
-                }
+            }
+            .overlay(alignment: .topLeading) { PassShape(notchY: topHeight).stroke(MP.line, lineWidth: 1) }
+            .overlay(alignment: .topLeading) {
                 DashedLine()
                     .stroke(MP.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
                     .frame(height: 1)

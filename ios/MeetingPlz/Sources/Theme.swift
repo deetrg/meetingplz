@@ -152,7 +152,7 @@ struct TextButton: View {
         Button(action: action) {
             Text(title).font(.ui(15, .medium)).underline(underline, color: c)
                 .foregroundStyle(c)
-                .padding(.vertical, 10).padding(.horizontal, 4).contentShape(Rectangle())
+                .padding(.vertical, 12).contentShape(Rectangle())
         }
         .buttonStyle(PressScale())
     }

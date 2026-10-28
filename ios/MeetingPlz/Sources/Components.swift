@@ -20,10 +20,11 @@ struct Segmented<V: Hashable>: View {
                         .foregroundStyle(on ? MP.ink : MP.muted)
                         .lineLimit(1).fixedSize()
                         .padding(.vertical, 11)
-                        .padding(.horizontal, stretch ? 0 : 14)
                         .overlay(alignment: .bottom) {
                             if on { Rectangle().fill(MP.accent).frame(height: 2).clipShape(RoundedRectangle(cornerRadius: 1)) }
                         }
+                        .padding(.leading, stretch ? 0 : (i == 0 ? 0 : 14))
+                        .padding(.trailing, stretch ? 0 : 14)
                         .frame(maxWidth: stretch ? .infinity : nil)
                         .contentShape(Rectangle())
                 }
