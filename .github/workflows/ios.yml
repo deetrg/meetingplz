@@ -39,6 +39,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/keys"
           echo "$P8" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
           chmod 600 "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
+      - name: Prune throwaway CI development certificates
+        continue-on-error: true
+        run: node tools/prune-certs.mjs "$RUNNER_TEMP/keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8" "${{ secrets.APPLE_API_KEY_ID }}" "${{ secrets.APPLE_API_ISSUER }}"
       - name: Archive
         run: |
           xcodebuild archive \
@@ -68,6 +71,8 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/keys"
 
   screenshots:
+    # commits with [skip shots] only run the TestFlight job
+    if: ${{ !contains(github.event.head_commit.message, '[skip shots]') }}
     runs-on: macos-latest
     timeout-minutes: 40
     defaults:
