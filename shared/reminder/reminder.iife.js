@@ -13,7 +13,11 @@
   function register() {
     if (root.__mpzFonts) return root.__mpzFonts;
     if (!root.FontFace || !root.document || !root.document.fonts || !root.atob) return Promise.resolve([]);
+    var have = {};
+    try { root.document.fonts.forEach(function (x) { have[String(x.family).replace(/[\"']/g, '') + '|' + x.style + '|' + x.weight] = x; }); } catch (e) {}
     var jobs = FACES.map(function (f) {
+      var ex = have[f[0] + '|' + f[1] + '|' + f[2]];
+      if (ex) return ex.load().catch(function () { return null; });
       try {
         var face = new root.FontFace(f[0], bytes(f[3]).buffer, { style: f[1], weight: f[2], display: 'swap' });
         root.document.fonts.add(face);

@@ -35,7 +35,10 @@ const fontsJs =
   '  function register() {\n' +
   '    if (root.__mpzFonts) return root.__mpzFonts;\n' +
   "    if (!root.FontFace || !root.document || !root.document.fonts || !root.atob) return Promise.resolve([]);\n" +
+  '    var have = {};\n' +
+  "    try { root.document.fonts.forEach(function (x) { have[String(x.family).replace(/[\\\"']/g, '') + '|' + x.style + '|' + x.weight] = x; }); } catch (e) {}\n" +
   '    var jobs = FACES.map(function (f) {\n' +
+  "      var ex = have[f[0] + '|' + f[1] + '|' + f[2]];\n      if (ex) return ex.load().catch(function () { return null; });\n" +
   '      try {\n' +
   "        var face = new root.FontFace(f[0], bytes(f[3]).buffer, { style: f[1], weight: f[2], display: 'swap' });\n" +
   '        root.document.fonts.add(face);\n' +
