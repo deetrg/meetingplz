@@ -287,7 +287,7 @@ var CSS = [
   '.top{padding:22px 20px 20px}.bot{padding:20px 20px 22px;grid-template-columns:1fr}',
   '.lbls{margin-bottom:18px}.hl{font-size:36px}.mtitle{font-size:26px;margin-top:12px}',
   '.info{grid-template-columns:1fr 1fr;margin-top:20px}.info .cell:nth-child(1){grid-column:1 / -1}',
-  '.lbls .lab{font-size:10.5px;letter-spacing:.05em}',
+  '.lbls .lab{font-size:10px;letter-spacing:.04em}',
   '.clock{font-size:52px}.join{height:52px}.sec{justify-content:space-between;gap:6px 10px}',
   '}',
   '@container (max-height:520px){.top{padding-top:20px;padding-bottom:16px}.bot{padding-top:16px;padding-bottom:20px}.hl{font-size:34px}.mtitle{font-size:24px;margin-top:8px}.info{margin-top:14px}.lbls{margin-bottom:12px}.clock{font-size:44px}}',
