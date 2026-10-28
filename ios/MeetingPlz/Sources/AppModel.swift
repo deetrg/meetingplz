@@ -69,9 +69,11 @@ final class AppModel: ObservableObject {
         me = Me(email: "you@example.com", name: "Demo", picture: nil, settings: nil,
                 accounts: [GoogleAccount(id: "1", email: "you@example.com", picture: nil, primary: true, error: nil),
                            GoogleAccount(id: "2", email: "you@work.example", picture: nil, primary: false, error: nil)])
-        events = [ev("a", "Quick sync", 32, 30, "https://meet.google.com/abc-defg-hij", "with Miles and 3 others"),
-                  ev("b", "Design review", 95, 45, "https://zoom.us/j/123456", "with Lan and 1 other"),
-                  ev("c", "Weekly 1:1", 240, 30, "https://teams.microsoft.com/l/meetup-join/x", "with Phi")]
+        events = CommandLine.arguments.contains("-mpEmpty") ? [] : [
+            ev("a", "Quick sync with design", 1.5, 30, "https://meet.google.com/abc-defg-hij", "with Miles and 3 others"),
+            ev("b", "Pipeline review", 62, 45, "https://zoom.us/j/123456", "with Anh"),
+            ev("c", "Customer call: Northwind", 185, 30, "https://teams.microsoft.com/l/meetup-join/x", "with Priya and 1 other"),
+            ev("d", "Weekly planning", 400, 30, nil, "with Lena and 5 others")]
         settings = Settings()
         if CommandLine.arguments.contains("-mpTakeover") { settings.style = "takeover" }
         loaded = true
@@ -214,7 +216,8 @@ final class AppModel: ObservableObject {
     }
 
     func startTest() {
-        let start = Date().addingTimeInterval(TimeInterval(settings.leadSeconds))
+        // -mpLate (CI screenshots): the test meeting started 42 seconds ago, so the pass shows "Final call."
+        let start = Date().addingTimeInterval(CommandLine.arguments.contains("-mpLate") ? -42 : TimeInterval(settings.leadSeconds))
         let e = MPEvent(key: "test@\(Int(Date().timeIntervalSince1970))", id: "test", title: "Quick sync", start: start,
                         end: start.addingTimeInterval(1800), link: "https://meet.google.com/",
                         calendar: me?.email ?? "you@example.com", attendees: "with Miles and 3 others")

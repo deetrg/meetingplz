@@ -211,3 +211,60 @@ enum Core {
 extension Optional where Wrapped == Bool {
     var orFalse: Bool { self ?? false }
 }
+
+// MARK: design v2 display helpers
+
+extension Core {
+    /// "Google Meet" / "Zoom" / "Teams" / "Webex" / "Link" / "\u{2014}" (no link).
+    static func gateLabel(_ link: String?) -> String {
+        guard let link, !link.isEmpty, let host = URL(string: link)?.host?.lowercased() else { return "\u{2014}" }
+        if host == "meet.google.com" || host == "g.co" { return "Google Meet" }
+        if host == "zoom.us" || host.hasSuffix(".zoom.us") || host.hasSuffix(".zoom.com") || host == "zoom.com" || host.hasSuffix("zoomgov.com") { return "Zoom" }
+        if host.hasSuffix("teams.microsoft.com") || host == "teams.live.com" || host == "teams.microsoft.us" { return "Teams" }
+        if host.hasSuffix("webex.com") { return "Webex" }
+        return "Link"
+    }
+
+    /// "with Miles and 3 others" -> "Miles +3", "with Phi" -> "Phi", nil -> "\u{2014}".
+    static func withText(_ attendees: String?) -> String {
+        guard var s = attendees?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return "\u{2014}" }
+        if s.lowercased().hasPrefix("with ") { s = String(s.dropFirst(5)) }
+        if let r = s.range(of: " and ") {
+            let first = String(s[s.startIndex..<r.lowerBound])
+            let rest = s[r.upperBound...]
+            if let n = Int(rest.split(separator: " ").first ?? "") { return "\(first) +\(n)" }
+            return "\(first) +1"
+        }
+        return s
+    }
+
+    /// Mono countdown "01:58" (or "1:02:03" past an hour).
+    static func fmtPass(_ ms: Double) -> String {
+        let secs = ms > 0 ? Int((ms / 1000).rounded(.up)) : Int((-ms / 1000).rounded(.down))
+        let h = secs / 3600, m = (secs % 3600) / 60, s = secs % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
+    }
+
+    private static let hmFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "h:mm"; return f
+    }()
+    private static let apFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "a"; return f
+    }()
+    /// "9:41 AM" for the board.
+    static func boardTime(_ d: Date) -> String { timeFmt.string(from: d) }
+
+    /// "12:25 \u{2192} 12:55 AM" (meridiem shown once when both ends share it).
+    static func passRange(_ e: MPEvent) -> String {
+        let a = hmFmt.string(from: e.startDate), b = hmFmt.string(from: e.endDate)
+        let ap = apFmt.string(from: e.startDate), bp = apFmt.string(from: e.endDate)
+        return ap == bp ? "\(a) \u{2192} \(b) \(bp)" : "\(a) \(ap) \u{2192} \(b) \(bp)"
+    }
+
+    static func dayWord(_ d: Date, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        if cal.isDate(d, inSameDayAs: now) { return "Today" }
+        if let t = cal.date(byAdding: .day, value: 1, to: now), cal.isDate(d, inSameDayAs: t) { return "Tomorrow" }
+        let f = DateFormatter(); f.dateFormat = "EEE d MMM"; return f.string(from: d)
+    }
+}

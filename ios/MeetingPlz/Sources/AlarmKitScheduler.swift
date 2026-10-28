@@ -69,7 +69,7 @@ enum AlarmScheduler {
             for (e, fire) in list {
                 let stop = AlarmButton(text: "Stop", textColor: .white, systemImageName: "stop.circle")
                 let join = AlarmButton(text: LocalizedStringResource(stringLiteral: Core.providerLabel(e.link)), textColor: .white, systemImageName: "video")
-                let alert = AlarmPresentation.Alert(title: LocalizedStringResource(stringLiteral: "Join the meeting. \(e.title)"),
+                let alert = AlarmPresentation.Alert(title: LocalizedStringResource(stringLiteral: "Your meeting is boarding. \(e.title)"),
                                                     stopButton: stop, secondaryButton: join, secondaryButtonBehavior: .custom)
                 let attrs = AlarmAttributes<MeetingAlarmMetadata>(presentation: AlarmPresentation(alert: alert),
                                                                    metadata: MeetingAlarmMetadata(title: e.title), tintColor: .black)

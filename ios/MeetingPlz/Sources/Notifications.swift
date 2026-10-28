@@ -27,7 +27,7 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
 
     private func content(for e: MPEvent, lead: Int?, snoozed: Bool = false) -> UNMutableNotificationContent {
         let c = UNMutableNotificationContent()
-        c.title = "Join the meeting."
+        c.title = snoozed ? "Final call." : "Your meeting is boarding."
         let label = Core.providerLabel(e.link)
         if snoozed {
             c.body = "\(e.title) is starting now \u{00B7} \(label)"
