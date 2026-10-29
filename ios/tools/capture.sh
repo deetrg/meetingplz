@@ -31,10 +31,10 @@ shot 4-settings 4 -mpSettings
 # design v2 review set (kept in v2/ so the App Store upload tool never picks it up)
 shot v2/signin 3 -mpSignedOut
 shot v2/home 4
-shot v2/reminder-pass 4.5 -mpReminder -mpTakeover
+shot v2/reminder-pass 7 -mpReminder -mpTakeover
 shot v2/reminder-flyby-mid 2.6 -mpReminder
 shot v2/reminder-flyby 6.5 -mpReminder
-shot v2/reminder-late 4.5 -mpReminder -mpTakeover -mpLate
+shot v2/reminder-late 7 -mpReminder -mpTakeover -mpLate
 shot v2/settings 4 -mpSettings
 shot v2/settings-accounts 4.5 -mpSettings -mpAccounts
 shot v2/empty 4 -mpEmpty
@@ -42,8 +42,8 @@ xcrun simctl ui "$UDID" appearance dark
 shot 5-home-dark 4
 shot v2/home-dark 4
 shot v2/signin-dark 3 -mpSignedOut
-shot v2/reminder-pass-dark 4.5 -mpReminder -mpTakeover
-shot v2/reminder-late-dark 4.5 -mpReminder -mpTakeover -mpLate
+shot v2/reminder-pass-dark 7 -mpReminder -mpTakeover
+shot v2/reminder-late-dark 7 -mpReminder -mpTakeover -mpLate
 shot v2/settings-dark 4 -mpSettings
 xcrun simctl shutdown "$UDID" || true
 for f in "$OUT"/*.png "$OUT"/v2/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo "$f"; done
