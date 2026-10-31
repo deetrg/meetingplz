@@ -7,7 +7,7 @@ import { makeEnv, googleMock } from './helpers.js';
 const NOW = Date.UTC(2026, 9, 25, 10, 0, 0);
 
 async function seed(env, events, settings = {}) {
-  env.DB.raw.prepare("INSERT INTO users VALUES ('u1','sub','a@b.com','Dai','', NULL, ?, 1)").run(JSON.stringify(settings));
+  env.DB.raw.prepare("INSERT INTO users (id, google_sub, email, name, picture, refresh_token_enc, settings_json, created_at) VALUES ('u1','sub','a@b.com','Dai','', NULL, ?, 1)").run(JSON.stringify(settings));
   env.DB.raw.prepare("INSERT INTO google_accounts VALUES ('acc1','u1','sub','a@b.com','Dai','', ?, 1, NULL)").run(await encryptToken('rt', env.TOKEN_KEY));
   env.DB.raw.prepare("INSERT INTO push_subs (user_id,endpoint,p256dh,auth,created_at) VALUES ('u1','https://push.example/1','a','b',1)").run();
   env.DB.raw.prepare("INSERT INTO push_subs (user_id,endpoint,p256dh,auth,created_at) VALUES ('u1','https://push.example/dead','a','b',1)").run();
@@ -71,7 +71,7 @@ test('cron respects leadSeconds setting and snoozes', async () => {
 
 test('cron skips users without push subscriptions and non-meetings when meetingsOnly', async () => {
   const env = await makeEnv();
-  env.DB.raw.prepare("INSERT INTO users VALUES ('u2','s2','z@z.com','Z','', NULL, '{}', 1)").run();
+  env.DB.raw.prepare("INSERT INTO users (id, google_sub, email, name, picture, refresh_token_enc, settings_json, created_at) VALUES ('u2','s2','z@z.com','Z','', NULL, '{}', 1)").run();
   const sent = [];
   assert.deepEqual(await runCron(env, NOW, async () => { sent.push(1); return { ok: true }; }), []);
   assert.equal(sent.length, 0);

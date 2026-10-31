@@ -4,6 +4,8 @@ import { GoogleAuthError, CAL_SCOPE, authUrl, exchangeCode, idClaims, revokeToke
 import { listAccounts, loadUpcoming } from './events.js';
 import { buildPayload, pushToUser } from './notify.js';
 import { sendWebPush } from './push.js';
+import { bump, cleanRef, metricsHandler } from './metrics.js';
+import { collectStats, isAdmin, renderStatsHtml } from './stats.js';
 import { b64uDecode, b64uEncode, hmacSign, hmacVerify, json, parseCookies, randomId, randomToken, sha256Hex, utf8, fromUtf8 } from './util.js';
 
 const SESSION_DAYS = 90;
@@ -66,7 +68,7 @@ async function readBody(request) {
   try { return await request.json(); } catch { return null; }
 }
 
-async function authed(request, env, url) {
+export async function authed(request, env, url) {
   const h = request.headers.get('authorization') || '';
   let token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
   let viaCookie = false;
@@ -83,7 +85,7 @@ async function authed(request, env, url) {
   const hash = await sha256Hex(env.SESSION_PEPPER + token);
   const now = Date.now();
   const row = await env.DB.prepare(
-    'SELECT u.*, s.last_seen AS s_last FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?',
+    'SELECT u.*, s.last_seen AS s_last, s.client AS s_client FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?',
   ).bind(hash).first();
   if (!row || now - row.s_last > SESSION_DAYS * 86400000) return null;
   if (now - row.s_last > 3600000) {
@@ -106,15 +108,16 @@ async function authStart(request, env, url) {
   if (client === 'web' && url.origin === 'https://meetingplz.pages.dev') {
     return redirect(`${CANONICAL_ORIGIN}/api/auth/google/start${url.search}`);
   }
-  const { url: gurl, nonceCookie } = await oauthStart(env, url, { client, ret, calendarOnly: client === 'web' && url.searchParams.get('scope') === 'calendar' });
+  const { url: gurl, nonceCookie } = await oauthStart(env, url, { client, ret, ref: cleanRef(url.searchParams.get('ref')), calendarOnly: client === 'web' && url.searchParams.get('scope') === 'calendar' });
   return redirect(gurl, [nonceCookie]);
 }
 
 // Signed OAuth state + Google URL. `link` = MeetingPlz user id when adding another Google account.
-async function oauthStart(env, url, { client, ret, link = '', calendarOnly = false }) {
+async function oauthStart(env, url, { client, ret, ref = '', link = '', calendarOnly = false }) {
   const nonce = randomToken(16);
   const st = { c: client, r: client === 'web' ? '' : ret, n: nonce, e: Date.now() + 10 * 60000 };
   if (link) st.link = link;
+  if (ref) st.f = ref; // campaign tag (utm_source / ref), counted on sign-in
   const payload = b64uEncode(utf8(JSON.stringify(st)));
   const state = `${payload}.${await hmacSign(env.SESSION_PEPPER, payload)}`;
   const redirectUri = `${publicOrigin(env, url)}/api/auth/google/callback`;
@@ -232,7 +235,10 @@ async function authCallback(request, env, url) {
   } catch {
     return failRedirect(st.c, st.r, 'google_exchange_failed', st);
   }
-  if (!String(tok.scope || '').includes(CAL_SCOPE)) return failRedirect(st.c, st.r, 'calendar_access_needed', st);
+  if (!String(tok.scope || '').includes(CAL_SCOPE)) {
+    await bump(env, 'consent_missing', st.c, st.f);
+    return failRedirect(st.c, st.r, 'calendar_access_needed', st);
+  }
 
   const clear = cookie(`mp_oauth_${String((st && st.n) || '').slice(0, 10)}`, '', { maxAge: 0, path: '/api/auth' });
   if (st.link) {
@@ -257,8 +263,9 @@ async function authCallback(request, env, url) {
   } else {
     userId = randomId();
     await env.DB.prepare(
-      'INSERT INTO users (id, google_sub, email, name, picture, refresh_token_enc, settings_json, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)',
-    ).bind(userId, claims.sub, claims.email || '', claims.name || '', claims.picture || '', '{}', now).run();
+      'INSERT INTO users (id, google_sub, email, name, picture, refresh_token_enc, settings_json, created_at, ref) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)',
+    ).bind(userId, claims.sub, claims.email || '', claims.name || '', claims.picture || '', '{}', now, cleanRef(st.f) || null).run();
+    await bump(env, 'user_created', st.c, st.f);
     await env.DB.prepare(
       'INSERT INTO google_accounts (id, user_id, google_sub, email, name, picture, refresh_token_enc, added_at, last_error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)',
     ).bind(randomId(), userId, claims.sub, claims.email || '', claims.name || '', claims.picture || '', enc || null, now).run();
@@ -267,6 +274,7 @@ async function authCallback(request, env, url) {
   await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, client, created_at, last_seen) VALUES (?, ?, ?, ?, ?)')
     .bind(await sha256Hex(env.SESSION_PEPPER + token), userId, st.c, now, now).run();
 
+  await bump(env, 'signin_ok', st.c, st.f);
   if (st.c === 'web') return redirect('/app', [clear, cookie('mp_session', token, { maxAge: SESSION_DAYS * 86400 })]);
   return redirect(`${st.r}#token=${token}`, [clear]);
 }
@@ -325,6 +333,11 @@ async function logout(request, env, url, user) {
 async function upcoming(request, env, url, user) {
   try {
     const events = await loadUpcoming(env, user, { maxAgeMs: 90000 });
+    if (user.first_upcoming_at == null) {
+      // activation: the first time this user's meetings load (claimed atomically, so it counts once)
+      const claim = await env.DB.prepare('UPDATE users SET first_upcoming_at = ? WHERE id = ? AND first_upcoming_at IS NULL').bind(Date.now(), user.id).run();
+      if (claim.meta && claim.meta.changes === 1) await bump(env, 'first_upcoming', user.s_client, user.ref);
+    }
     return json({ now: Date.now(), events });
   } catch (e) {
     if (e instanceof GoogleAuthError) return json({ error: 'reauth' }, 401);
@@ -394,7 +407,24 @@ export async function deleteAccount(request, env, url, user) {
   return json({ ok: true }, 200, { 'set-cookie': cookie('mp_session', '', { maxAge: 0 }) });
 }
 
+async function adminStats(request, env, url, user) {
+  if (!isAdmin(user)) return json({ error: 'not_found' }, 404);
+  return json(await collectStats(env));
+}
+
+// GET /stats: private HTML page, only for the signed-in admin (anyone else gets a plain 404).
+export async function statsPage(request, env) {
+  const url = new URL(request.url);
+  let user = null;
+  try { user = await authed(request, env, url); } catch { user = null; }
+  const h = { 'cache-control': 'no-store', 'content-type': 'text/html; charset=utf-8', 'x-robots-tag': 'noindex' };
+  if (!isAdmin(user)) return new Response('Not found', { status: 404, headers: { ...h, 'content-type': 'text/plain; charset=utf-8' } });
+  return new Response(renderStatsHtml(await collectStats(env)), { status: 200, headers: h });
+}
+
 const ROUTES = {
+  'POST /api/m': { fn: metricsHandler, auth: false },
+  'GET /api/admin/stats': { fn: adminStats, auth: true },
   'GET /api/auth/google/start': { fn: authStart, auth: false },
   'GET /api/auth/google/callback': { fn: authCallback, auth: false },
   'GET /api/push/vapid': { fn: vapid, auth: false },

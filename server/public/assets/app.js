@@ -30,6 +30,7 @@
   /* ---------- utils ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function now() { return Date.now() + state.serverSkew; }
+  function ping(name) { try { if (window.mpMetric) window.mpMetric(name); } catch (e) {} } // anonymous counter, see /assets/m.js
   function loadFired() { try { return new Set(JSON.parse(localStorage.getItem('mp_fired') || '[]')); } catch (e) { return new Set(); } }
   function saveFired() { try { localStorage.setItem('mp_fired', JSON.stringify(Array.from(fired).slice(-60))); } catch (e) {} }
   function art(name) { var n = document.querySelector('#art-src [data-art="' + name + '"]'); return n ? n.innerHTML : ''; }
@@ -208,10 +209,12 @@
       fired.add(Core.eventKey(evt));
       saveFired();
       showReminder(evt);
+      ping('reminder_shown');
     }
   }
 
   function testIt() {
+    ping('test_reminder');
     var start = now() + 120000;
     showReminder({
       key: 'test:' + start, title: 'Quick sync', start: start, end: start + 1800000,
@@ -397,11 +400,12 @@
       case 'menu-btn': setMenu(document.getElementById('menu').hidden); break;
       case 'add-account': addAccount(); break;
       case 'test-it': testIt(); break;
-      case 'try-demo': enterDemo(); break;
+      case 'try-demo': ping('demo_start'); enterDemo(); break;
       case 'exit-demo': exitDemo(); break;
       case 'push-on': enablePush().then(rerenderParts); break;
       case 'push-off': disablePush().then(rerenderParts); break;
       case 'push-test':
+        ping('test_reminder');
         api('/api/test-reminder', { method: 'POST' }).then(function (r) { toast(r.ok ? 'Sending. It should arrive in a few seconds.' : 'No notification device found. Turn notifications on again.'); });
         break;
       case 'logout':

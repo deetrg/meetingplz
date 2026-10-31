@@ -68,6 +68,8 @@ All JSON. Auth is `Authorization: Bearer <session token>` or the `mp_session` co
 | `DELETE /api/accounts/:id` | revokes that account's token and removes it; `400 last_account` for the only one |
 | `PUT /api/settings` | validated partial, returns full settings |
 | `POST /api/logout` | |
+| `POST /api/m` | Anonymous funnel counter, no auth/cookies/IP stored. Body `{name, client, ref}` (JSON or text/plain, for sendBeacon). Names allow-listed: landing_view, download_click_mac\|win\|chrome\|iphone, web_signin_start, demo_start, reminder_shown, test_reminder. 204 (also when rate-limited, 40/min per caller, 600/min per isolate), 400 for other names. Server-side only: signin_ok, user_created, consent_missing, first_upcoming (ref carried in the OAuth state from `/api/auth/google/start?ref=`). Table `metrics(day,name,client,ref,count)`. |
+| `GET /stats`, `GET /api/admin/stats` | Private: 404 unless the session user is daitq3010@gmail.com. |
 | `GET /api/upcoming` | `{ now, events: [{ key, id, title, start, end, link, provider, calendar, attendees, attendeeCount, isMeeting, allDay, declined }] }`. `now`, `start`, `end` are epoch ms. Merged from every linked account (fetched in parallel; the same meeting in several calendars is listed once, `calendar` = email of the first account). Next 24 h, cached 90 s in D1. A failing account is marked and skipped; `401 reauth` only when no account can be read. `401 {error:"reauth"}` if Google access was revoked. |
 | `GET /api/push/vapid` | `{ publicKey }` |
 | `POST /api/push/subscribe`, `DELETE /api/push/subscribe` | PushSubscription JSON / `{ endpoint }` |

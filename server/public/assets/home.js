@@ -8,9 +8,9 @@
   var isMac = !isIOS && (/Mac/i.test(plat) || /Macintosh/i.test(ua));
   var btn = document.getElementById('dl-main'), label = document.getElementById('dl-label');
   if (btn && label) {
-    if (isWin) { btn.href = 'https://github.com/deetrg/meetingplz/releases/latest/download/MeetingPlz-windows-setup.exe'; label.textContent = 'Download for Windows'; }
-    else if (isIOS) { btn.href = '/iphone'; label.textContent = 'Get it on iPhone'; }
-    else if (!isMac) { btn.href = '#download'; label.textContent = 'Choose your download'; }
+    if (isWin) { btn.href = 'https://github.com/deetrg/meetingplz/releases/latest/download/MeetingPlz-windows-setup.exe'; btn.setAttribute('data-m', 'download_click_win'); label.textContent = 'Download for Windows'; }
+    else if (isIOS) { btn.removeAttribute('data-m'); btn.href = '/iphone'; label.textContent = 'Get it on iPhone'; }
+    else if (!isMac) { btn.removeAttribute('data-m'); btn.href = '#download'; label.textContent = 'Choose your download'; }
   }
 
   /* ---- live fly-by ---- */

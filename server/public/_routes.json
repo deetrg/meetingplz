@@ -1,1 +1,1 @@
-{ "version": 1, "include": ["/api/*", "/", "/app", "/app.html", "/index.html", "/privacy", "/privacy.html", "/terms", "/terms.html", "/chrome", "/chrome.html", "/iphone", "/iphone.html", "/sitemap.xml", "/robots.txt"], "exclude": [] }
+{ "version": 1, "include": ["/api/*", "/", "/app", "/app.html", "/index.html", "/stats", "/privacy", "/privacy.html", "/terms", "/terms.html", "/chrome", "/chrome.html", "/iphone", "/iphone.html", "/sitemap.xml", "/robots.txt"], "exclude": [] }

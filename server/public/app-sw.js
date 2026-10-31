@@ -34,6 +34,7 @@ self.addEventListener('push', (event) => {
       icon: '/shared/art/icon-192.png',
       badge: '/shared/art/icon-32.png',
     });
+    if (!isTest) fetch('/api/m', { method: 'POST', body: JSON.stringify({ name: 'reminder_shown', client: 'web', ref: '' }), keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(() => {}); // anonymous counter
     await logPush({ at: Date.now(), title: d.title, body: d.body, tag: d.tag, actions: (d.actions || []).map((a) => a.title), shown: true });
   })());
 });

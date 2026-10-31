@@ -5,7 +5,7 @@ import { b64uEncode } from '../src/util.js';
 // Minimal D1 look-alike on node:sqlite so the real SQL and schema run in tests.
 export function makeDb() {
   const db = new DatabaseSync(':memory:');
-  for (const f of ['0001_init.sql', '0002_google_accounts.sql', '0003_link_codes.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
+  for (const f of ['0001_init.sql', '0002_google_accounts.sql', '0003_link_codes.sql', '0004_metrics.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
   return {
     raw: db,
     prepare(sql) {

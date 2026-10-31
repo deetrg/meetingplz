@@ -28,6 +28,15 @@
   function firedSet() { return { has: function (k) { return !!fired[k]; } }; }
   function nowMs() { return Date.now() + serverOffset; }
 
+  // Anonymous counter (no token, no user id): fire and forget.
+  function ping(name) {
+    try {
+      MP.cfg().then(function (c) {
+        return fetch(c.api + '/api/m', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: name, client: 'desktop', ref: '' }) });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function fmtTime(ms) {
     return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -108,6 +117,7 @@
       fired[key] = Date.now();
       saveFired();
       show(ev.key ? ev : Object.assign({}, ev, { key: key }));
+      ping('reminder_shown');
     }
   }
 
@@ -131,6 +141,7 @@
   }
 
   function showTest(extra) {
+    if (!cfg.demo) ping('test_reminder');
     var ev = fakeEvent(118000, extra);
     shown = { key: ev.key, event: ev, test: Date.now() + 10 * 60000 };
     return MP.invoke('show_overlay', { event: ev, settings: settings, mode: settings.style }).then(function () { MP.invoke('log_line', { line: 'overlay shown' }); });

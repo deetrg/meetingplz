@@ -168,6 +168,16 @@
       try { if (ev) await chrome.notifications.clear(NOTIF_PREFIX + core.eventKey(ev)); } catch (e) {}
     }
 
+    // Anonymous counter (no token, no user id): fire and forget, never blocks or throws.
+    function ping(name) {
+      try {
+        var p = get(['apiBase']).then(function (s) {
+          return doFetch((s.apiBase || API_DEFAULT) + '/api/m', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: name, client: 'ext', ref: '' }) });
+        });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+    }
+
     // ---- main tick ----
 
     async function tick() {
@@ -195,6 +205,7 @@
         active[core.eventKey(ev)] = ev;
         await set({ active: active });
         shown.push({ key: core.eventKey(ev), where: await showReminder(ev, settings) });
+        ping('reminder_shown');
       } else {
         await set({ fired: fired });
       }
@@ -344,6 +355,7 @@
       var active = (await get(['active'])).active || {};
       active[ev.key] = ev;
       await set({ active: active });
+      ping('test_reminder');
       return { where: await showReminder(ev, settings) };
     }
 

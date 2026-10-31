@@ -211,6 +211,7 @@ final class AppModel: ObservableObject {
         if let r = reminder, r.event.key == e.key { return }
         markFired(e.key)
         reminder = ReminderState(event: e, isTest: false)
+        if !isDemo { Metrics.ping("reminder_shown") }
         AlarmPlayer.shared.start(kind: settings.alarm)
         AlarmScheduler.cancelAll()
     }
@@ -222,6 +223,7 @@ final class AppModel: ObservableObject {
                         end: start.addingTimeInterval(1800), link: "https://meet.google.com/",
                         calendar: me?.email ?? "you@example.com", attendees: "with Miles and 3 others")
         reminder = ReminderState(event: e, isTest: true)
+        if !isDemo, !CommandLine.arguments.contains("-mpLate") { Metrics.ping("test_reminder") }
         AlarmPlayer.shared.start(kind: settings.alarm)
     }
 
@@ -291,5 +293,19 @@ final class AppModel: ObservableObject {
             task.setTaskCompleted(success: true)
         }
         task.expirationHandler = { work.cancel() }
+    }
+}
+
+/// Anonymous counter (no token, no user id, no cookie): fire and forget, never blocks or throws.
+enum Metrics {
+    static func ping(_ name: String) {
+        guard let url = URL(string: Config.base + "/api/m"),
+              let body = try? JSONSerialization.data(withJSONObject: ["name": name, "client": "ios", "ref": ""]) else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 10
+        req.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        req.httpBody = body
+        URLSession.shared.dataTask(with: req).resume()
     }
 }
